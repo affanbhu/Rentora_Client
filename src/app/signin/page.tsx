@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth-client";
 
-
 export default function SigninPage() {
   const router = useRouter();
 
@@ -103,7 +102,7 @@ export default function SigninPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#172033] placeholder:text-gray-500 outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
               />
             </div>
 
@@ -118,7 +117,7 @@ export default function SigninPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#172033] placeholder:text-gray-500 outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
               />
             </div>
 

@@ -55,7 +55,7 @@ export default function Navbar() {
                 href="/profile"
                 className="hidden text-sm font-semibold text-[#172033] transition hover:text-[#f47735] sm:block"
               >
-                Hi, {session.user.name}
+                {session.user.name}
               </Link>
 
               <button

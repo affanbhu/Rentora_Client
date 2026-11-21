@@ -114,7 +114,7 @@ export default function SignupPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Enter your full name"
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#172033] placeholder:text-gray-500 outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
               />
             </div>
 
@@ -128,7 +128,7 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#172033] placeholder:text-gray-500 outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
               />
             </div>
 
@@ -143,7 +143,7 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 8 characters"
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#172033] placeholder:text-gray-500 outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
               />
             </div>
 
@@ -157,7 +157,7 @@ export default function SignupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm your password"
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#172033] placeholder:text-gray-500 outline-none transition focus:border-[#f47735] focus:ring-2 focus:ring-orange-100"
               />
             </div>
 

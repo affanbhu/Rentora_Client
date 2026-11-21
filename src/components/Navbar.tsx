@@ -21,7 +21,6 @@ export default function Navbar() {
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f47735] text-xl font-bold text-white">
             R
           </span>
-
           <span>
             <span className="block text-2xl font-extrabold tracking-tight text-[#172033]">
               rentora<span className="text-[#f47735]">.</span>
@@ -52,9 +51,12 @@ export default function Navbar() {
             <span className="text-sm text-gray-400">Loading...</span>
           ) : session?.user ? (
             <>
-              <span className="hidden text-sm font-semibold text-[#172033] sm:block">
+              <Link
+                href="/profile"
+                className="hidden text-sm font-semibold text-[#172033] transition hover:text-[#f47735] sm:block"
+              >
                 Hi, {session.user.name}
-              </span>
+              </Link>
 
               <button
                 onClick={handleSignOut}

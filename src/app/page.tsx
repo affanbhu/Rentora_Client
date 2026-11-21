@@ -1,4 +1,7 @@
 
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 
@@ -11,38 +14,17 @@ const categories = [
   { name: "Events", icon: "🎪", count: "60+ items" },
 ];
 
-const equipment = [
-  {
-    name: "Heavy Duty Excavator",
-    category: "Construction Equipment",
-    price: "$180",
-    period: "/day",
-    rating: "4.9",
-    location: "Dhaka, Bangladesh",
-    image: "🚜",
-    tag: "Popular",
-  },
-  {
-    name: "Professional Generator",
-    category: "Power Equipment",
-    price: "$45",
-    period: "/day",
-    rating: "4.8",
-    location: "Chattogram, Bangladesh",
-    image: "⚡",
-    tag: "Available",
-  },
-  {
-    name: "Industrial Concrete Mixer",
-    category: "Construction Equipment",
-    price: "$65",
-    period: "/day",
-    rating: "4.9",
-    location: "Dhaka, Bangladesh",
-    image: "🏗️",
-    tag: "Top Rated",
-  },
-];
+interface Equipment {
+  _id: string;
+  slug: string;
+  name: string;
+  category: string;
+  description: string;
+  dailyRate: number;
+  location: string;
+  imageUrl: string;
+  availability: string;
+}
 
 const benefits = [
   {
@@ -63,6 +45,62 @@ const benefits = [
 ];
 
 export default function Home() {
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [loadingEquipment, setLoadingEquipment] = useState(true);
+  const [equipmentError, setEquipmentError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const [locationTerm, setLocationTerm] = useState("");
+
+  useEffect(() => {
+    const fetchEquipment = async () => {
+      try {
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
+        const response = await fetch(`${apiUrl}/api/equipment`);
+
+        if (!response.ok) {
+          throw new Error("Unable to load equipment. Please try again.");
+        }
+
+        const result = await response.json();
+
+        if (!result.success || !Array.isArray(result.data)) {
+          throw new Error("The equipment response was invalid.");
+        }
+
+        setEquipment(result.data);
+      } catch (error) {
+        setEquipmentError(
+          error instanceof Error ? error.message : "Something went wrong."
+        );
+      } finally {
+        setLoadingEquipment(false);
+      }
+    };
+
+    fetchEquipment();
+  }, []);
+
+  const filteredEquipment = useMemo(() => {
+    return equipment.filter((item) => {
+      const matchesSearch =
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesCategory =
+        selectedCategory === "All Categories" ||
+        item.category.toLowerCase() === selectedCategory.toLowerCase();
+
+      const matchesLocation = item.location
+        .toLowerCase()
+        .includes(locationTerm.toLowerCase());
+
+      return matchesSearch && matchesCategory && matchesLocation;
+    });
+  }, [equipment, searchTerm, selectedCategory, locationTerm]);
+
   return (
     <main className="min-h-screen overflow-hidden">
       {/* Navbar */}
@@ -183,6 +221,8 @@ export default function Home() {
             <input
               type="text"
               placeholder="Search equipment..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
               className="mt-2 w-full border-0 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400"
             />
           </div>
@@ -191,12 +231,18 @@ export default function Home() {
             <label className="block text-xs font-bold text-gray-500">
               CATEGORY
             </label>
-            <select className="mt-2 w-full bg-transparent text-sm text-gray-700 outline-none">
+            <select
+              value={selectedCategory}
+              onChange={(event) => setSelectedCategory(event.target.value)}
+              className="mt-2 w-full bg-transparent text-sm text-gray-700 outline-none"
+            >
               <option>All Categories</option>
               <option>Construction</option>
               <option>Vehicles</option>
               <option>Power Tools</option>
               <option>Electronics</option>
+              <option>Home & Living</option>
+              <option>Events</option>
             </select>
           </div>
 
@@ -207,6 +253,8 @@ export default function Home() {
             <input
               type="text"
               placeholder="Enter your location"
+              value={locationTerm}
+              onChange={(event) => setLocationTerm(event.target.value)}
               className="mt-2 w-full bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400"
             />
           </div>
@@ -253,6 +301,7 @@ export default function Home() {
             <a
               key={category.name}
               href="#equipment"
+              onClick={() => setSelectedCategory(category.name)}
               className="group rounded-2xl border border-gray-200 bg-white p-5 transition duration-300 hover:-translate-y-1 hover:border-[#f47735] hover:shadow-lg"
             >
               <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#fff1e9] text-3xl transition group-hover:bg-[#f47735]">
@@ -296,66 +345,92 @@ export default function Home() {
           </div>
 
           <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {equipment.map((item) => (
-              <article
-                key={item.name}
-                className="group overflow-hidden rounded-2xl border border-gray-200 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl"
-              >
-                <div className="relative flex h-56 items-center justify-center bg-[#f0f2f5] text-8xl transition group-hover:bg-[#e9edf2]">
-                  {item.image}
+            {loadingEquipment ? (
+              <p className="col-span-full py-12 text-center text-gray-500">
+                Loading equipment...
+              </p>
+            ) : equipmentError ? (
+              <div className="col-span-full rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-600">
+                {equipmentError}
+              </div>
+            ) : filteredEquipment.length === 0 ? (
+              <p className="col-span-full py-12 text-center text-gray-500">
+                No equipment found. Try changing your search or filters.
+              </p>
+            ) : (
+              filteredEquipment.map((item) => (
+                <article
+                  key={item._id}
+                  className="group overflow-hidden rounded-2xl border border-gray-200 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+                >
+                  <div className="relative flex h-56 items-center justify-center overflow-hidden bg-[#f0f2f5] transition group-hover:bg-[#e9edf2]">
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                    />
 
-                  <span className="absolute left-4 top-4 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#172033] shadow-sm">
-                    {item.tag}
-                  </span>
-
-                  <button
-                    type="button"
-                    aria-label={`Save ${item.name}`}
-                    className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition hover:text-[#f47735]"
-                  >
-                    ♡
-                  </button>
-                </div>
-
-                <div className="p-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#f47735]">
-                    {item.category}
-                  </p>
-
-                  <h3 className="mt-2 text-lg font-bold text-[#172033]">
-                    {item.name}
-                  </h3>
-
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-sm text-gray-500">
-                      ★ {item.rating}
+                    <span className="absolute left-4 top-4 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#172033] shadow-sm">
+                      {item.availability}
                     </span>
 
-                    <span className="text-xs text-gray-500">
-                      ⌖ {item.location}
-                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Save ${item.name}`}
+                      className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition hover:text-[#f47735]"
+                    >
+                      ♡
+                    </button>
                   </div>
 
-                  <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-5">
-                    <p>
-                      <span className="text-2xl font-extrabold text-[#172033]">
-                        {item.price}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {item.period}
-                      </span>
+                  <div className="p-5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#f47735]">
+                      {item.category}
                     </p>
 
-                    <Link
-                      href="/signin"
-                      className="rounded-lg bg-[#172033] px-4 py-3 text-xs font-bold text-white transition hover:bg-[#f47735]"
-                    >
-                      View Details →
-                    </Link>
+                    <h3 className="mt-2 text-lg font-bold text-[#172033]">
+                      {item.name}
+                    </h3>
+
+                    <p className="mt-2 line-clamp-2 text-sm text-gray-500">
+                      {item.description}
+                    </p>
+
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-gray-500">
+                        ⌖ {item.location}
+                      </span>
+
+                      <span
+                        className={`text-xs font-semibold ${
+                          item.availability.toLowerCase() === "available"
+                            ? "text-green-600"
+                            : "text-red-500"
+                        }`}
+                      >
+                        {item.availability}
+                      </span>
+                    </div>
+
+                    <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-5">
+                      <p>
+                        <span className="text-2xl font-extrabold text-[#172033]">
+                          ৳{item.dailyRate.toLocaleString("en-BD")}
+                        </span>
+                        <span className="text-xs text-gray-500"> / day</span>
+                      </p>
+
+                      <Link
+                        href={`/equipment/${item.slug}`}
+                        className="rounded-lg bg-[#172033] px-4 py-3 text-xs font-bold text-white transition hover:bg-[#f47735]"
+                      >
+                        View Details →
+                      </Link>
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              ))
+            )}
           </div>
         </div>
       </section>

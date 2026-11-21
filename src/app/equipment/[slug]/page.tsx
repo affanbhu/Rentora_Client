@@ -28,7 +28,32 @@ export default function EquipmentDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+  const [bookingSuccess, setBookingSuccess] = useState("");
+
   const slug = params.slug as string;
+
+  const today = (() => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  })();
+
+  const totalDays =
+    startDate && endDate && endDate >= startDate
+      ? Math.floor(
+          (new Date(`${endDate}T00:00:00`).getTime() -
+            new Date(`${startDate}T00:00:00`).getTime()) /
+            86400000
+        ) + 1
+      : 0;
+
+  const totalPrice = equipment ? totalDays * equipment.dailyRate : 0;
 
   useEffect(() => {
     if (isPending) return;
@@ -71,6 +96,62 @@ export default function EquipmentDetailsPage() {
 
     fetchEquipment();
   }, [slug, session, isPending, router]);
+
+  const handleBooking = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    setBookingError("");
+    setBookingSuccess("");
+
+    if (!startDate || !endDate) {
+      setBookingError("Please select your rental dates.");
+      return;
+    }
+
+    if (startDate < today || endDate < startDate) {
+      setBookingError("Please select valid rental dates.");
+      return;
+    }
+
+    try {
+      setBookingLoading(true);
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"}/api/bookings`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            equipmentSlug: slug,
+            startDate,
+            endDate,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Booking failed. Please try again.");
+      }
+
+      setBookingSuccess(
+        `Booking request submitted successfully! Your total is ৳${totalPrice.toLocaleString("en-BD")}.`
+      );
+
+      setStartDate("");
+      setEndDate("");
+    } catch (err) {
+      setBookingError(
+        err instanceof Error ? err.message : "Something went wrong."
+      );
+    } finally {
+      setBookingLoading(false);
+    }
+  };
 
   if (isPending || loading) {
     return (
@@ -144,13 +225,114 @@ export default function EquipmentDetailsPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  disabled
-                  className="mt-8 w-full cursor-not-allowed rounded-xl bg-gray-300 px-6 py-4 font-bold text-gray-600"
+                {/* Booking Form */}
+                <form
+                  onSubmit={handleBooking}
+                  className="mt-8 space-y-5 border-t border-gray-100 pt-6"
                 >
-                  Booking Coming Soon
-                </button>
+                  <h2 className="text-xl font-bold text-[#172033]">
+                    Book This Equipment
+                  </h2>
+
+                  <div>
+                    <label
+                      htmlFor="startDate"
+                      className="mb-2 block text-sm font-semibold text-gray-700"
+                    >
+                      Rental Start Date
+                    </label>
+
+                    <input
+                      id="startDate"
+                      type="date"
+                      min={today}
+                      value={startDate}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setBookingError("");
+                        setBookingSuccess("");
+                        if (endDate && e.target.value > endDate) {
+                          setEndDate("");
+                        }
+                      }}
+                      required
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-800 outline-none focus:border-[#f47735]"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="endDate"
+                      className="mb-2 block text-sm font-semibold text-gray-700"
+                    >
+                      Rental End Date
+                    </label>
+
+                    <input
+                      id="endDate"
+                      type="date"
+                      min={startDate || today}
+                      value={endDate}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setBookingError("");
+                        setBookingSuccess("");
+                      }}
+                      required
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-800 outline-none focus:border-[#f47735]"
+                    />
+                  </div>
+
+                  {totalDays > 0 && (
+                    <div className="rounded-xl bg-orange-50 p-5">
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Rental Duration</span>
+                        <span>{totalDays} day(s)</span>
+                      </div>
+
+                      <div className="mt-3 flex justify-between text-sm text-gray-600">
+                        <span>Daily Rate</span>
+                        <span>
+                          ৳{equipment.dailyRate.toLocaleString("en-BD")}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex justify-between border-t border-orange-200 pt-4">
+                        <span className="font-bold text-[#172033]">
+                          Total Price
+                        </span>
+                        <span className="text-xl font-extrabold text-[#f47735]">
+                          ৳{totalPrice.toLocaleString("en-BD")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {bookingError && (
+                    <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+                      {bookingError}
+                    </p>
+                  )}
+
+                  {bookingSuccess && (
+                    <p className="rounded-lg bg-green-50 p-3 text-sm font-medium text-green-700">
+                      {bookingSuccess}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={
+                      bookingLoading ||
+                      equipment.availability !== "Available"
+                    }
+                    className="w-full rounded-xl bg-[#f47735] px-6 py-4 font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-400"
+                  >
+                    {bookingLoading
+                      ? "Submitting Booking..."
+                      : "Submit Booking Request"}
+                  </button>
+                </form>
               </div>
             </div>
           ) : null}

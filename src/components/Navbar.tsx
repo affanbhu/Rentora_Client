@@ -52,6 +52,13 @@ export default function Navbar() {
           ) : session?.user ? (
             <>
               <Link
+                href="/my-bookings"
+                className="hidden text-sm font-semibold text-[#172033] transition hover:text-[#f47735] sm:block"
+              >
+                My Bookings
+              </Link>
+
+              <Link
                 href="/profile"
                 className="hidden text-sm font-semibold text-[#172033] transition hover:text-[#f47735] sm:block"
               >

@@ -25,6 +25,8 @@ export default function MyBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [cancellingId, setCancellingId] = useState("");
 
   useEffect(() => {
     if (isPending) return;
@@ -62,6 +64,47 @@ export default function MyBookingsPage() {
 
     fetchBookings();
   }, [session, isPending]);
+
+  const handleCancelBooking = async (bookingId: string) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to cancel this booking?"
+    );
+
+    if (!confirmed) return;
+
+    setCancellingId(bookingId);
+    setActionError("");
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"}/api/bookings/${bookingId}/cancel`,
+        {
+          method: "PATCH",
+          credentials: "include",
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to cancel booking.");
+      }
+
+      setBookings((currentBookings) =>
+        currentBookings.map((booking) =>
+          booking._id === bookingId
+            ? { ...booking, status: "cancelled" }
+            : booking
+        )
+      );
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Something went wrong."
+      );
+    } finally {
+      setCancellingId("");
+    }
+  };
 
   const formatDate = (date: string) => {
     return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", {
@@ -162,6 +205,12 @@ export default function MyBookingsPage() {
                 </p>
               </div>
 
+              {actionError && (
+                <div className="mb-5 rounded-lg bg-red-50 p-4 text-sm text-red-600">
+                  {actionError}
+                </div>
+              )}
+
               <div className="space-y-5">
                 {bookings.map((booking) => (
                   <div
@@ -231,12 +280,28 @@ export default function MyBookingsPage() {
                         </p>
                       </div>
 
-                      <Link
-                        href={`/equipment/${booking.equipmentSlug}`}
-                        className="inline-block rounded-lg border border-[#172033] px-5 py-3 text-center font-semibold text-[#172033] transition hover:bg-[#172033] hover:text-white"
-                      >
-                        View Equipment
-                      </Link>
+                      <div className="flex flex-col gap-3 sm:flex-row">
+                        <Link
+                          href={`/equipment/${booking.equipmentSlug}`}
+                          className="inline-block rounded-lg border border-[#172033] px-5 py-3 text-center font-semibold text-[#172033] transition hover:bg-[#172033] hover:text-white"
+                        >
+                          View Equipment
+                        </Link>
+
+                        {booking.status.toLowerCase() === "pending" && (
+                          <button
+                            onClick={() =>
+                              handleCancelBooking(booking._id)
+                            }
+                            disabled={cancellingId === booking._id}
+                            className="rounded-lg bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {cancellingId === booking._id
+                              ? "Cancelling..."
+                              : "Cancel Booking"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

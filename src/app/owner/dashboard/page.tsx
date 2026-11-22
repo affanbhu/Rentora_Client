@@ -138,12 +138,21 @@ export default function OwnerDashboard() {
             track of your rental business from one place.
           </p>
 
-          <Link
-            href="/equipment"
-            className="mt-6 inline-block rounded-lg bg-[#f47735] px-6 py-3 font-semibold text-white transition hover:bg-[#df6428]"
-          >
-            Browse Equipment →
-          </Link>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/owner/add-equipment"
+              className="inline-block rounded-lg bg-[#f47735] px-6 py-3 font-semibold text-white transition hover:bg-[#df6428]"
+            >
+              + Add Equipment
+            </Link>
+
+            <Link
+              href="/equipment"
+              className="inline-block rounded-lg border border-white/30 px-6 py-3 font-semibold text-white transition hover:bg-white/10"
+            >
+              Browse Equipment →
+            </Link>
+          </div>
         </section>
 
         {error && (

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { signIn } from "@/lib/auth-client";
 
 export default function SigninPage() {
@@ -22,19 +23,27 @@ export default function SigninPage() {
       setLoading(true);
 
       const result = await signIn.email({
-        email,
+        email: email.trim(),
         password,
       });
 
       if (result.error) {
-        setError(result.error.message || "Invalid email or password.");
+        const message =
+          result.error.message || "Invalid email or password.";
+
+        setError(message);
+        toast.error(message);
         return;
       }
+
+      toast.success("Login successful! Welcome back to Rentora.");
 
       router.push("/");
       router.refresh();
     } catch {
-      setError("Something went wrong. Please try again.");
+      const message = "Something went wrong. Please try again.";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -43,7 +52,6 @@ export default function SigninPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f7f8fa] px-5 py-12">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-xl md:grid-cols-2">
-
         <div className="hidden flex-col justify-between bg-[#172033] p-12 text-white md:flex">
           <Link href="/" className="text-3xl font-extrabold">
             rentora<span className="text-[#f47735]">.</span>

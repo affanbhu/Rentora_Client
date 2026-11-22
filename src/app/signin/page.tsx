@@ -14,6 +14,7 @@ export default function SigninPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleSignin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -46,6 +47,33 @@ export default function SigninPage() {
       toast.error(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignin = async () => {
+    setError("");
+
+    try {
+      setGoogleLoading(true);
+
+      const result = await signIn.social({
+        provider: "google",
+        callbackURL: window.location.origin,
+      });
+
+      if (result.error) {
+        const message =
+          result.error.message || "Google login failed. Please try again.";
+
+        setError(message);
+        toast.error(message);
+        setGoogleLoading(false);
+      }
+    } catch {
+      const message = "Unable to sign in with Google. Please try again.";
+      setError(message);
+      toast.error(message);
+      setGoogleLoading(false);
     }
   };
 
@@ -98,7 +126,25 @@ export default function SigninPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSignin} className="mt-9 space-y-6">
+          <button
+            type="button"
+            onClick={handleGoogleSignin}
+            disabled={googleLoading || loading}
+            className="mt-8 flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white py-4 text-sm font-bold text-[#172033] transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span className="text-xl font-extrabold text-[#4285F4]">G</span>
+            {googleLoading ? "Connecting to Google..." : "Continue with Google"}
+          </button>
+
+          <div className="my-7 flex items-center gap-4">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs font-semibold uppercase text-gray-400">
+              Or continue with email
+            </span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+
+          <form onSubmit={handleSignin} className="space-y-6">
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#172033]">
                 Email Address
@@ -137,7 +183,7 @@ export default function SigninPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || googleLoading}
               className="w-full rounded-xl bg-[#f47735] py-4 text-sm font-bold text-white transition hover:bg-[#df6428] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? "Signing In..." : "Sign In →"}

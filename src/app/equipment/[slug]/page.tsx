@@ -4,7 +4,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-
 import { useSession } from "@/lib/auth-client";
 
 interface Equipment {
@@ -35,6 +34,8 @@ export default function EquipmentDetailsPage() {
   const [bookingSuccess, setBookingSuccess] = useState("");
 
   const slug = params.slug as string;
+  const API_URL =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
   const today = (() => {
     const date = new Date();
@@ -65,10 +66,9 @@ export default function EquipmentDetailsPage() {
 
     const fetchEquipment = async () => {
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"}/api/equipment`,
-          { credentials: "include" }
-        );
+        const response = await fetch(`${API_URL}/api/equipment`, {
+          credentials: "include",
+        });
 
         if (!response.ok) {
           throw new Error("Unable to load equipment.");
@@ -95,9 +95,11 @@ export default function EquipmentDetailsPage() {
     };
 
     fetchEquipment();
-  }, [slug, session, isPending, router]);
+  }, [slug, session, isPending, router, API_URL]);
 
-  const handleBooking = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleBooking = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
     event.preventDefault();
 
     setBookingError("");
@@ -116,8 +118,37 @@ export default function EquipmentDetailsPage() {
     try {
       setBookingLoading(true);
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001"}/api/bookings`,
+      // Step 1: Create the booking
+      const bookingResponse = await fetch(`${API_URL}/api/bookings`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          equipmentSlug: slug,
+          startDate,
+          endDate,
+        }),
+      });
+
+      const bookingResult = await bookingResponse.json();
+
+      if (!bookingResponse.ok) {
+        throw new Error(
+          bookingResult.message || "Booking failed. Please try again."
+        );
+      }
+
+      const bookingId = bookingResult.data?._id;
+
+      if (!bookingId) {
+        throw new Error("Booking was created, but its ID was not returned.");
+      }
+
+      // Step 2: Create Stripe Checkout session
+      const paymentResponse = await fetch(
+        `${API_URL}/api/payments/create-checkout-session`,
         {
           method: "POST",
           headers: {
@@ -125,30 +156,32 @@ export default function EquipmentDetailsPage() {
           },
           credentials: "include",
           body: JSON.stringify({
-            equipmentSlug: slug,
-            startDate,
-            endDate,
+            bookingId,
           }),
         }
       );
 
-      const result = await response.json();
+      const paymentResult = await paymentResponse.json();
 
-      if (!response.ok) {
-        throw new Error(result.message || "Booking failed. Please try again.");
+      if (!paymentResponse.ok) {
+        throw new Error(
+          paymentResult.message ||
+            "Unable to start payment. Your booking is still pending."
+        );
       }
 
-      setBookingSuccess(
-        `Booking request submitted successfully! Your total is ৳${totalPrice.toLocaleString("en-BD")}.`
-      );
+      const checkoutUrl = paymentResult.data?.checkoutUrl;
 
-      setStartDate("");
-      setEndDate("");
+      if (!checkoutUrl) {
+        throw new Error("Stripe did not return a checkout URL.");
+      }
+
+      // Step 3: Redirect customer to Stripe Checkout
+      window.location.href = checkoutUrl;
     } catch (err) {
       setBookingError(
         err instanceof Error ? err.message : "Something went wrong."
       );
-    } finally {
       setBookingLoading(false);
     }
   };
@@ -165,7 +198,6 @@ export default function EquipmentDetailsPage() {
 
   return (
     <>
-
       <main className="min-h-screen bg-gray-50 px-5 py-12">
         <div className="mx-auto max-w-6xl">
           <Link
@@ -328,8 +360,8 @@ export default function EquipmentDetailsPage() {
                     className="w-full rounded-xl bg-[#f47735] px-6 py-4 font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-400"
                   >
                     {bookingLoading
-                      ? "Submitting Booking..."
-                      : "Submit Booking Request"}
+                      ? "Redirecting to Payment..."
+                      : "Book & Proceed to Payment"}
                   </button>
                 </form>
               </div>

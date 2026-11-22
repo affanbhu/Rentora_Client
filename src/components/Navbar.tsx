@@ -1,18 +1,67 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
 export default function Navbar() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
+
   const [menuOpen, setMenuOpen] = useState(false);
+  const [role, setRole] = useState("customer");
+
+  useEffect(() => {
+    if (isPending) return;
+
+    if (!session?.user) {
+      setRole("customer");
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchUserRole = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/profile/me`, {
+          credentials: "include",
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success && !cancelled) {
+          setRole(result.user.role || "customer");
+        }
+      } catch (error) {
+        console.error("Unable to fetch user role:", error);
+      }
+    };
+
+    fetchUserRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user, isPending]);
+
+  const isOwner = role === "owner";
+
+  const dashboardHref = isOwner
+    ? "/owner/dashboard"
+    : "/dashboard";
+
+  const dashboardLabel = isOwner
+    ? "Owner Dashboard"
+    : "Customer Dashboard";
 
   const handleSignOut = async () => {
     await signOut();
+    setRole("customer");
     setMenuOpen(false);
     router.refresh();
   };
@@ -70,9 +119,15 @@ export default function Navbar() {
             <span className="text-sm text-gray-400">Loading...</span>
           ) : session?.user ? (
             <>
-              <Link href="/my-bookings" className={linkClass}>
-                My Bookings
+              <Link href={dashboardHref} className={linkClass}>
+                {dashboardLabel}
               </Link>
+
+              {!isOwner && (
+                <Link href="/my-bookings" className={linkClass}>
+                  My Bookings
+                </Link>
+              )}
 
               <Link href="/profile" className={linkClass}>
                 {session.user.name || "My Profile"}
@@ -181,12 +236,22 @@ export default function Navbar() {
             ) : session?.user ? (
               <>
                 <Link
-                  href="/my-bookings"
+                  href={dashboardHref}
                   onClick={closeMenu}
                   className={linkClass}
                 >
-                  My Bookings
+                  {dashboardLabel}
                 </Link>
+
+                {!isOwner && (
+                  <Link
+                    href="/my-bookings"
+                    onClick={closeMenu}
+                    className={linkClass}
+                  >
+                    My Bookings
+                  </Link>
+                )}
 
                 <Link
                   href="/profile"

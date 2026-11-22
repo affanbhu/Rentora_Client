@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
+
 
 const categories = [
   { name: "Construction", icon: "🏗️", count: "120+ items" },
@@ -103,8 +103,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen overflow-hidden">
-      {/* Navbar */}
-      <Navbar />
+      
 
       {/* Hero */}
       <section className="relative bg-[#172033]">

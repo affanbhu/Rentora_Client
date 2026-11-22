@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
+
 import { useSession } from "@/lib/auth-client";
 
 interface Equipment {
@@ -165,7 +165,6 @@ export default function EquipmentDetailsPage() {
 
   return (
     <>
-      <Navbar />
 
       <main className="min-h-screen bg-gray-50 px-5 py-12">
         <div className="mx-auto max-w-6xl">

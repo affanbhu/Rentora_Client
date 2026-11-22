@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
+
 import { useSession } from "@/lib/auth-client";
 
 interface Booking {
@@ -133,7 +133,6 @@ export default function MyBookingsPage() {
 
   return (
     <>
-      <Navbar />
 
       <main className="min-h-screen bg-[#f5f6f8] px-5 py-12">
         <div className="mx-auto max-w-6xl">

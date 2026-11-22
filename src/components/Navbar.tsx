@@ -15,21 +15,26 @@ export default function Navbar() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [role, setRole] = useState("customer");
+  const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
     if (isPending) return;
 
     if (!session?.user) {
       setRole("customer");
+      setRoleLoading(false);
       return;
     }
 
     let cancelled = false;
 
     const fetchUserRole = async () => {
+      setRoleLoading(true);
+
       try {
         const response = await fetch(`${API_URL}/api/profile/me`, {
           credentials: "include",
+          cache: "no-store",
         });
 
         const result = await response.json();
@@ -39,6 +44,10 @@ export default function Navbar() {
         }
       } catch (error) {
         console.error("Unable to fetch user role:", error);
+      } finally {
+        if (!cancelled) {
+          setRoleLoading(false);
+        }
       }
     };
 
@@ -49,15 +58,21 @@ export default function Navbar() {
     };
   }, [session?.user, isPending]);
 
+  const isAdmin = role === "admin";
   const isOwner = role === "owner";
+  const isCustomer = !isAdmin && !isOwner;
 
-  const dashboardHref = isOwner
-    ? "/owner/dashboard"
-    : "/dashboard";
+  const dashboardHref = isAdmin
+    ? "/admin/dashboard"
+    : isOwner
+      ? "/owner/dashboard"
+      : "/dashboard";
 
-  const dashboardLabel = isOwner
-    ? "Owner Dashboard"
-    : "Customer Dashboard";
+  const dashboardLabel = isAdmin
+    ? "Admin Dashboard"
+    : isOwner
+      ? "Owner Dashboard"
+      : "Customer Dashboard";
 
   const handleSignOut = async () => {
     await signOut();
@@ -119,11 +134,17 @@ export default function Navbar() {
             <span className="text-sm text-gray-400">Loading...</span>
           ) : session?.user ? (
             <>
-              <Link href={dashboardHref} className={linkClass}>
-                {dashboardLabel}
-              </Link>
+              {roleLoading ? (
+                <span className="text-sm text-gray-400">
+                  Loading dashboard...
+                </span>
+              ) : (
+                <Link href={dashboardHref} className={linkClass}>
+                  {dashboardLabel}
+                </Link>
+              )}
 
-              {!isOwner && (
+              {isCustomer && (
                 <Link href="/my-bookings" className={linkClass}>
                   My Bookings
                 </Link>
@@ -235,15 +256,21 @@ export default function Navbar() {
               <p className="py-2 text-sm text-gray-400">Loading...</p>
             ) : session?.user ? (
               <>
-                <Link
-                  href={dashboardHref}
-                  onClick={closeMenu}
-                  className={linkClass}
-                >
-                  {dashboardLabel}
-                </Link>
+                {roleLoading ? (
+                  <p className="py-2 text-sm text-gray-400">
+                    Loading dashboard...
+                  </p>
+                ) : (
+                  <Link
+                    href={dashboardHref}
+                    onClick={closeMenu}
+                    className={linkClass}
+                  >
+                    {dashboardLabel}
+                  </Link>
+                )}
 
-                {!isOwner && (
+                {isCustomer && (
                   <Link
                     href="/my-bookings"
                     onClick={closeMenu}

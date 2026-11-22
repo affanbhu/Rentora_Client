@@ -12,6 +12,9 @@ interface UserProfile {
   image?: string | null;
 }
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
 export default function ProfilePage() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
@@ -25,18 +28,16 @@ export default function ProfilePage() {
 
     if (!session?.user) {
       router.replace("/signin");
+      setLoading(false);
       return;
     }
 
     const fetchProfile = async () => {
       try {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/profile/me`,
-          {
-            method: "GET",
-            credentials: "include",
-          }
-        );
+        const response = await fetch(`${API_URL}/api/profile/me`, {
+          method: "GET",
+          credentials: "include",
+        });
 
         const result = await response.json();
 

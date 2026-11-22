@@ -43,6 +43,37 @@ type DashboardData = {
   }[];
 };
 
+function AnalyticsBar({
+  label,
+  value,
+  total,
+}: {
+  label: string;
+  value: number;
+  total: number;
+}) {
+  const percentage =
+    total > 0 ? Math.min(100, (value / total) * 100) : 0;
+
+  return (
+    <div className="mb-5 last:mb-0">
+      <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+        <span className="font-medium text-gray-700">{label}</span>
+        <span className="font-semibold text-gray-900">
+          {value} ({percentage.toFixed(1)}%)
+        </span>
+      </div>
+
+      <div className="h-3 overflow-hidden rounded-full bg-gray-100">
+        <div
+          className="h-full rounded-full bg-blue-600 transition-all duration-500"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboardPage() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
@@ -116,7 +147,7 @@ export default function AdminDashboardPage() {
 
   if (isPending || loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="flex min-h-screen items-center justify-center">
         <p className="text-gray-500">Loading admin dashboard...</p>
       </main>
     );
@@ -124,8 +155,8 @@ export default function AdminDashboardPage() {
 
   if (error) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
-        <p className="text-red-600 text-center">{error}</p>
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-6">
+        <p className="text-center text-red-600">{error}</p>
         <button
           onClick={() => window.location.reload()}
           className="rounded-lg bg-black px-5 py-2 text-white"
@@ -148,6 +179,25 @@ export default function AdminDashboardPage() {
     { label: "Confirmed Bookings", value: data.stats.confirmedBookings },
     { label: "Paid Bookings", value: data.stats.paidBookings },
   ];
+
+  const otherUsers = Math.max(
+    0,
+    data.stats.totalUsers -
+      data.stats.totalCustomers -
+      data.stats.totalOwners
+  );
+
+  const otherBookings = Math.max(
+    0,
+    data.stats.totalBookings -
+      data.stats.pendingBookings -
+      data.stats.confirmedBookings
+  );
+
+  const unpaidBookings = Math.max(
+    0,
+    data.stats.totalBookings - data.stats.paidBookings
+  );
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
@@ -187,6 +237,102 @@ export default function AdminDashboardPage() {
               </p>
             </div>
           ))}
+        </section>
+
+        {/* Analytics Overview */}
+        <section className="mb-10">
+          <div className="mb-5">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Analytics Overview
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Visual breakdown of users, bookings, and payments.
+            </p>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-3">
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h3 className="mb-6 text-lg font-bold text-gray-900">
+                User Composition
+              </h3>
+
+              <AnalyticsBar
+                label="Customers"
+                value={data.stats.totalCustomers}
+                total={data.stats.totalUsers}
+              />
+              <AnalyticsBar
+                label="Owners"
+                value={data.stats.totalOwners}
+                total={data.stats.totalUsers}
+              />
+              <AnalyticsBar
+                label="Other Accounts"
+                value={otherUsers}
+                total={data.stats.totalUsers}
+              />
+
+              <p className="mt-5 border-t pt-4 text-sm text-gray-500">
+                Total registered users:{" "}
+                <strong className="text-gray-900">
+                  {data.stats.totalUsers}
+                </strong>
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h3 className="mb-6 text-lg font-bold text-gray-900">
+                Booking Status
+              </h3>
+
+              <AnalyticsBar
+                label="Pending"
+                value={data.stats.pendingBookings}
+                total={data.stats.totalBookings}
+              />
+              <AnalyticsBar
+                label="Confirmed"
+                value={data.stats.confirmedBookings}
+                total={data.stats.totalBookings}
+              />
+              <AnalyticsBar
+                label="Other / Cancelled"
+                value={otherBookings}
+                total={data.stats.totalBookings}
+              />
+
+              <p className="mt-5 border-t pt-4 text-sm text-gray-500">
+                Total bookings:{" "}
+                <strong className="text-gray-900">
+                  {data.stats.totalBookings}
+                </strong>
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h3 className="mb-6 text-lg font-bold text-gray-900">
+                Payment Overview
+              </h3>
+
+              <AnalyticsBar
+                label="Paid Bookings"
+                value={data.stats.paidBookings}
+                total={data.stats.totalBookings}
+              />
+              <AnalyticsBar
+                label="Unpaid Bookings"
+                value={unpaidBookings}
+                total={data.stats.totalBookings}
+              />
+
+              <p className="mt-5 border-t pt-4 text-sm text-gray-500">
+                Paid bookings:{" "}
+                <strong className="text-gray-900">
+                  {data.stats.paidBookings}
+                </strong>
+              </p>
+            </div>
+          </div>
         </section>
 
         <section className="mb-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">

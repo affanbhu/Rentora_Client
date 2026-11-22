@@ -42,16 +42,23 @@ export default function Navbar() {
         </Link>
 
         {/* Desktop navigation */}
-        <div className="hidden items-center gap-8 text-sm font-medium text-gray-600 md:flex">
+        <div className="hidden items-center gap-6 text-sm font-medium text-gray-600 md:flex">
           <Link href="/" className="transition hover:text-[#f47735]">
             Home
           </Link>
+
           <Link href="/#categories" className="transition hover:text-[#f47735]">
             Categories
           </Link>
-          <Link href="/#equipment" className="transition hover:text-[#f47735]">
+
+          <Link href="/equipment" className="transition hover:text-[#f47735]">
             Explore Equipment
           </Link>
+
+          <Link href="/favorites" className="transition hover:text-[#f47735]">
+            <span className="text-red-500">♥</span> Favorites
+          </Link>
+
           <Link href="/#about" className="transition hover:text-[#f47735]">
             About Us
           </Link>
@@ -148,11 +155,19 @@ export default function Navbar() {
             </Link>
 
             <Link
-              href="/#equipment"
+              href="/equipment"
               onClick={closeMenu}
               className={linkClass}
             >
               Explore Equipment
+            </Link>
+
+            <Link
+              href="/favorites"
+              onClick={closeMenu}
+              className={linkClass}
+            >
+              <span className="text-red-500">♥</span> Favorites
             </Link>
 
             <Link href="/#about" onClick={closeMenu} className={linkClass}>

@@ -21,6 +21,7 @@ interface UserProfile {
   id: string;
   name: string;
   email: string;
+  role: string;
 }
 
 const API_URL =
@@ -47,17 +48,51 @@ export default function CustomerDashboard() {
 
     const fetchDashboardData = async () => {
       try {
-        const [bookingResponse, profileResponse] = await Promise.all([
-          fetch(`${API_URL}/api/bookings/my-bookings`, {
+        // First, retrieve the authenticated user's profile.
+        const profileResponse = await fetch(
+          `${API_URL}/api/profile/me`,
+          {
             credentials: "include",
-          }),
-          fetch(`${API_URL}/api/profile/me`, {
+          }
+        );
+
+        const profileResult = await profileResponse.json();
+
+        if (
+          !profileResponse.ok ||
+          !profileResult.success ||
+          !profileResult.user
+        ) {
+          throw new Error(
+            profileResult.message || "Unable to load profile."
+          );
+        }
+
+        // Check the user's role before loading customer data.
+        const role = profileResult.user.role || "customer";
+
+        if (role !== "customer") {
+          router.replace(
+            role === "owner"
+              ? "/owner/dashboard"
+              : role === "admin"
+                ? "/admin/dashboard"
+                : "/"
+          );
+          return;
+        }
+
+        setProfile(profileResult.user);
+
+        // Only customers can load their booking information.
+        const bookingResponse = await fetch(
+          `${API_URL}/api/bookings/my-bookings`,
+          {
             credentials: "include",
-          }),
-        ]);
+          }
+        );
 
         const bookingResult = await bookingResponse.json();
-        const profileResult = await profileResponse.json();
 
         if (!bookingResponse.ok || !bookingResult.success) {
           throw new Error(
@@ -65,14 +100,7 @@ export default function CustomerDashboard() {
           );
         }
 
-        if (!profileResponse.ok) {
-          throw new Error(
-            profileResult.message || "Unable to load profile."
-          );
-        }
-
         setBookings(bookingResult.data || []);
-        setProfile(profileResult.user);
         setFavoritesCount(getFavorites().length);
       } catch (err) {
         setError(

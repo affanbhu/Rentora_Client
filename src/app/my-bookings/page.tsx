@@ -14,6 +14,10 @@ interface Booking {
   totalDays: number;
   dailyRate: number;
   totalPrice: number;
+  quantity?: number;
+  phone?: string;
+  deliveryAddress?: string;
+  notes?: string;
   status: string;
   paymentStatus?: string;
   createdAt: string;
@@ -27,6 +31,7 @@ export default function MyBookingsPage() {
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [cancellingId, setCancellingId] = useState("");
+  const [retryingId, setRetryingId] = useState("");
 
   const [reviewBookingId, setReviewBookingId] = useState("");
   const [reviewRating, setReviewRating] = useState(5);
@@ -114,6 +119,44 @@ export default function MyBookingsPage() {
       );
     } finally {
       setCancellingId("");
+    }
+  };
+
+  const handleRetryPayment = async (bookingId: string) => {
+    setRetryingId(bookingId);
+    setActionError("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/payments/create-checkout-session`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ bookingId }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Unable to restart payment.");
+      }
+
+      const checkoutUrl = result.data?.checkoutUrl;
+
+      if (!checkoutUrl) {
+        throw new Error("Stripe did not return a checkout URL.");
+      }
+
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Unable to restart payment."
+      );
+      setRetryingId("");
     }
   };
 
@@ -335,6 +378,35 @@ export default function MyBookingsPage() {
                       </div>
                     </div>
 
+                    {(booking.phone || booking.deliveryAddress || booking.notes) && (
+                      <div className="mb-6 grid gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-2">
+                        {booking.quantity !== undefined && (
+                          <div>
+                            <p className="text-sm text-gray-500">Quantity</p>
+                            <p className="mt-1 font-semibold text-[#172033]">{booking.quantity}</p>
+                          </div>
+                        )}
+                        {booking.phone && (
+                          <div>
+                            <p className="text-sm text-gray-500">Contact Phone</p>
+                            <p className="mt-1 font-semibold text-[#172033]">{booking.phone}</p>
+                          </div>
+                        )}
+                        {booking.deliveryAddress && (
+                          <div className="sm:col-span-2">
+                            <p className="text-sm text-gray-500">Delivery Address</p>
+                            <p className="mt-1 font-semibold text-[#172033]">{booking.deliveryAddress}</p>
+                          </div>
+                        )}
+                        {booking.notes && (
+                          <div className="sm:col-span-2">
+                            <p className="text-sm text-gray-500">Additional Notes</p>
+                            <p className="mt-1 text-[#172033]">{booking.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                       <div>
                         <p className="text-sm text-gray-500">
@@ -349,6 +421,19 @@ export default function MyBookingsPage() {
                       </div>
 
                       <div className="flex flex-col gap-3 sm:flex-row">
+                        {booking.status.toLowerCase() === "pending" &&
+                          booking.paymentStatus?.toLowerCase() !== "paid" && (
+                            <button
+                              onClick={() => handleRetryPayment(booking._id)}
+                              disabled={retryingId === booking._id}
+                              className="rounded-lg bg-[#f47735] px-5 py-3 font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {retryingId === booking._id
+                                ? "Redirecting..."
+                                : "Pay Now / Retry Payment"}
+                            </button>
+                          )}
+
                         <Link
                           href={`/equipment/${booking.equipmentSlug}`}
                           className="inline-block rounded-lg border border-[#172033] px-5 py-3 text-center font-semibold text-[#172033] transition hover:bg-[#172033] hover:text-white"

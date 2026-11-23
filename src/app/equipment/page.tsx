@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  FavoriteEquipment,
-  getFavorites,
-  toggleFavorite,
-} from "@/lib/favorites";
+import { useRouter } from "next/navigation";
+import { useSession } from "@/lib/auth-client";
+import { FavoriteEquipment } from "@/lib/favorites";
 
 interface Equipment extends FavoriteEquipment {
   rentalType?: string;
@@ -23,8 +21,11 @@ const categories = [
 ];
 
 export default function EquipmentPage() {
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [favorites, setFavorites] = useState<FavoriteEquipment[]>([]);
+  const [favoriteActionId, setFavoriteActionId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -37,10 +38,36 @@ export default function EquipmentPage() {
   const [maxPrice, setMaxPrice] = useState("");
   const [sortBy, setSortBy] = useState("newest");
 
-  // Load saved favorites.
+  // Load saved favorites from MongoDB.
   useEffect(() => {
-    setFavorites(getFavorites());
-  }, []);
+    if (isPending) return;
+
+    if (!session?.user) {
+      setFavorites([]);
+      return;
+    }
+
+    const fetchFavorites = async () => {
+      try {
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
+        const response = await fetch(`${apiUrl}/api/favorites`, {
+          credentials: "include",
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          setFavorites(result.data || []);
+        }
+      } catch (err) {
+        console.error("Unable to load favorites:", err);
+      }
+    };
+
+    fetchFavorites();
+  }, [isPending, session]);
 
   // Fetch equipment using backend search and filters.
   useEffect(() => {
@@ -116,10 +143,48 @@ export default function EquipmentPage() {
     sortBy,
   ]);
 
-  // Add or remove an equipment item from favorites.
-  const handleFavorite = (item: FavoriteEquipment) => {
-    const updatedFavorites = toggleFavorite(item);
-    setFavorites(updatedFavorites);
+  // Add or remove an equipment item using the MongoDB API.
+  const handleFavorite = async (item: FavoriteEquipment) => {
+    if (!session?.user) {
+      router.push("/signin");
+      return;
+    }
+
+    try {
+      setFavoriteActionId(item._id);
+
+      const alreadySaved = isSaved(item._id);
+      const apiUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
+      const response = await fetch(
+        `${apiUrl}/api/favorites/${item._id}`,
+        {
+          method: alreadySaved ? "DELETE" : "POST",
+          credentials: "include",
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Unable to update favorites.");
+      }
+
+      setFavorites((current) =>
+        alreadySaved
+          ? current.filter((favorite) => favorite._id !== item._id)
+          : [...current, item]
+      );
+    } catch (err) {
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Unable to update favorites."
+      );
+    } finally {
+      setFavoriteActionId("");
+    }
   };
 
   const isSaved = (id: string) =>

@@ -16,6 +16,7 @@ interface Equipment {
   location: string;
   imageUrl: string;
   availability: string;
+  availableQuantity?: number;
 }
 
 interface Review {
@@ -52,6 +53,10 @@ export default function EquipmentDetailsPage() {
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [phone, setPhone] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [notes, setNotes] = useState("");
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
 
@@ -76,7 +81,9 @@ export default function EquipmentDetailsPage() {
         ) + 1
       : 0;
 
-  const totalPrice = equipment ? totalDays * equipment.dailyRate : 0;
+  const totalPrice = equipment
+    ? totalDays * equipment.dailyRate * Number(quantity)
+    : 0;
 
   useEffect(() => {
     if (isPending) return;
@@ -172,6 +179,25 @@ export default function EquipmentDetailsPage() {
       return;
     }
 
+    if (!phone.trim() || phone.trim().length < 7) {
+      setBookingError("Please enter a valid phone number.");
+      return;
+    }
+
+    if (!deliveryAddress.trim() || deliveryAddress.trim().length < 8) {
+      setBookingError("Please enter a complete delivery address.");
+      return;
+    }
+
+    if (
+      !Number.isInteger(Number(quantity)) ||
+      Number(quantity) < 1 ||
+      Number(quantity) > (equipment?.availableQuantity ?? 1)
+    ) {
+      setBookingError("Please select a valid available quantity.");
+      return;
+    }
+
     try {
       setBookingLoading(true);
 
@@ -185,6 +211,10 @@ export default function EquipmentDetailsPage() {
           equipmentSlug: slug,
           startDate,
           endDate,
+          quantity: Number(quantity),
+          phone: phone.trim(),
+          deliveryAddress: deliveryAddress.trim(),
+          notes: notes.trim(),
         }),
       });
 
@@ -373,6 +403,75 @@ export default function EquipmentDetailsPage() {
                     />
                   </div>
 
+                  <div>
+                    <label htmlFor="quantity" className="mb-2 block text-sm font-semibold text-gray-700">
+                      Quantity (Available: {equipment.availableQuantity ?? 1})
+                    </label>
+                    <input
+                      id="quantity"
+                      type="number"
+                      min="1"
+                      max={equipment.availableQuantity ?? 1}
+                      step="1"
+                      value={quantity}
+                      onChange={(e) => {
+                        setQuantity(e.target.value);
+                        setBookingError("");
+                      }}
+                      required
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-800 outline-none focus:border-[#f47735]"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="phone" className="mb-2 block text-sm font-semibold text-gray-700">
+                      Contact Phone Number
+                    </label>
+                    <input
+                      id="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Your phone number"
+                      required
+                      minLength={7}
+                      maxLength={20}
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-800 outline-none focus:border-[#f47735]"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="deliveryAddress" className="mb-2 block text-sm font-semibold text-gray-700">
+                      Delivery Address
+                    </label>
+                    <textarea
+                      id="deliveryAddress"
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      placeholder="Enter your complete delivery address"
+                      required
+                      minLength={8}
+                      maxLength={500}
+                      rows={3}
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-800 outline-none focus:border-[#f47735]"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="bookingNotes" className="mb-2 block text-sm font-semibold text-gray-700">
+                      Additional Notes (Optional)
+                    </label>
+                    <textarea
+                      id="bookingNotes"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Any special instructions?"
+                      maxLength={1000}
+                      rows={2}
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-800 outline-none focus:border-[#f47735]"
+                    />
+                  </div>
+
                   {totalDays > 0 && (
                     <div className="rounded-xl bg-orange-50 p-5">
                       <div className="flex justify-between text-sm text-gray-600">
@@ -385,6 +484,11 @@ export default function EquipmentDetailsPage() {
                         <span>
                           ৳{equipment.dailyRate.toLocaleString("en-BD")}
                         </span>
+                      </div>
+
+                      <div className="mt-3 flex justify-between text-sm text-gray-600">
+                        <span>Quantity</span>
+                        <span>{Number(quantity)}</span>
                       </div>
 
                       <div className="mt-4 flex justify-between border-t border-orange-200 pt-4">

@@ -1,29 +1,121 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  FavoriteEquipment,
-  getFavorites,
-  toggleFavorite,
-} from "@/lib/favorites";
+import { useRouter } from "next/navigation";
+import { useSession } from "@/lib/auth-client";
+
+export interface FavoriteEquipment {
+  _id: string;
+  slug: string;
+  name: string;
+  category: string;
+  description: string;
+  dailyRate: number;
+  location: string;
+  imageUrl: string;
+  availability: string;
+}
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 export default function FavoritesPage() {
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
+
   const [favorites, setFavorites] = useState<FavoriteEquipment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [removingId, setRemovingId] = useState("");
 
   useEffect(() => {
-    setFavorites(getFavorites());
-  }, []);
+    if (isPending) return;
 
-  const handleRemove = (item: FavoriteEquipment) => {
-    const updatedFavorites = toggleFavorite(item);
-    setFavorites(updatedFavorites);
+    if (!session?.user) {
+      router.replace("/signin");
+      return;
+    }
+
+    const fetchFavorites = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await fetch(`${API_URL}/api/favorites`, {
+          credentials: "include",
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message || "Unable to load your favorites."
+          );
+        }
+
+        setFavorites(result.data || []);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load your favorites."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFavorites();
+  }, [isPending, session, router]);
+
+  const handleRemove = async (item: FavoriteEquipment) => {
+    try {
+      setRemovingId(item._id);
+      setError("");
+
+      const response = await fetch(
+        `${API_URL}/api/favorites/${item._id}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || "Unable to remove this favorite."
+        );
+      }
+
+      setFavorites((current) =>
+        current.filter((favorite) => favorite._id !== item._id)
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to remove this favorite."
+      );
+    } finally {
+      setRemovingId("");
+    }
   };
+
+  if (isPending || loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f8fa]">
+        <p className="text-sm font-semibold text-gray-500">
+          Loading your favorites...
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#f7f8fa]">
-      {/* Hero Section */}
       <section className="bg-[#172033] px-5 py-16 text-white sm:py-20">
         <div className="mx-auto max-w-7xl">
           <p className="text-xs font-bold uppercase tracking-[3px] text-[#f47735]">
@@ -41,7 +133,6 @@ export default function FavoritesPage() {
         </div>
       </section>
 
-      {/* Favorites Content */}
       <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-extrabold text-[#172033]">
@@ -52,6 +143,12 @@ export default function FavoritesPage() {
             {favorites.length} {favorites.length === 1 ? "item" : "items"} saved
           </p>
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+            {error}
+          </div>
+        )}
 
         {favorites.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm">
@@ -80,7 +177,6 @@ export default function FavoritesPage() {
                 key={item._id}
                 className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:-translate-y-1 hover:shadow-xl"
               >
-                {/* Equipment Image */}
                 <div className="relative h-56 bg-gray-100">
                   <img
                     src={item.imageUrl}
@@ -95,15 +191,15 @@ export default function FavoritesPage() {
                   <button
                     type="button"
                     onClick={() => handleRemove(item)}
+                    disabled={removingId === item._id}
                     aria-label="Remove from favorites"
                     title="Remove from favorites"
-                    className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl text-red-500 shadow-md transition hover:scale-110 hover:bg-red-50"
+                    className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl text-red-500 shadow-md transition hover:scale-110 hover:bg-red-50 disabled:opacity-50"
                   >
-                    ♥
+                    {removingId === item._id ? "..." : "♥"}
                   </button>
                 </div>
 
-                {/* Equipment Details */}
                 <div className="p-5">
                   <p className="text-xs font-bold uppercase tracking-wide text-[#f47735]">
                     {item.category}
@@ -121,7 +217,6 @@ export default function FavoritesPage() {
                     ⌖ {item.location}
                   </div>
 
-                  {/* Price and Actions */}
                   <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-5">
                     <p>
                       <span className="text-2xl font-extrabold text-[#172033]">
@@ -141,9 +236,12 @@ export default function FavoritesPage() {
                   <button
                     type="button"
                     onClick={() => handleRemove(item)}
-                    className="mt-4 w-full rounded-lg border border-red-200 py-3 text-sm font-bold text-red-500 transition hover:bg-red-50"
+                    disabled={removingId === item._id}
+                    className="mt-4 w-full rounded-lg border border-red-200 py-3 text-sm font-bold text-red-500 transition hover:bg-red-50 disabled:opacity-50"
                   >
-                    Remove from Favorites
+                    {removingId === item._id
+                      ? "Removing..."
+                      : "Remove from Favorites"}
                   </button>
                 </div>
               </article>

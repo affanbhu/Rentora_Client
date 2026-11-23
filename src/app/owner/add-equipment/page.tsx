@@ -33,6 +33,12 @@ export default function AddEquipmentPage() {
     dailyRate: "",
     location: "",
     imageUrl: "",
+    rentalType: "Daily",
+    availableQuantity: "1",
+    condition: "Good",
+    brand: "",
+    model: "",
+    terms: "",
   });
 
   useEffect(() => {
@@ -99,6 +105,7 @@ export default function AddEquipmentPage() {
         body: JSON.stringify({
           ...formData,
           dailyRate: Number(formData.dailyRate),
+          availableQuantity: Number(formData.availableQuantity),
         }),
       });
 
@@ -117,6 +124,12 @@ export default function AddEquipmentPage() {
         dailyRate: "",
         location: "",
         imageUrl: "",
+        rentalType: "Daily",
+        availableQuantity: "1",
+        condition: "Good",
+        brand: "",
+        model: "",
+        terms: "",
       });
 
       setTimeout(() => {
@@ -294,6 +307,59 @@ export default function AddEquipmentPage() {
                   required
                 />
               </div>
+            </div>
+
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div>
+                <label htmlFor="rentalType" className="text-sm font-semibold text-[#172033]">
+                  Rental Type *
+                </label>
+                <select id="rentalType" name="rentalType" value={formData.rentalType} onChange={handleChange} className={inputClass} required>
+                  <option value="Daily">Daily</option>
+                  <option value="Weekly">Weekly</option>
+                  <option value="Monthly">Monthly</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="availableQuantity" className="text-sm font-semibold text-[#172033]">
+                  Available Quantity *
+                </label>
+                <input id="availableQuantity" name="availableQuantity" type="number" min="1" step="1" value={formData.availableQuantity} onChange={handleChange} className={inputClass} required />
+              </div>
+
+              <div>
+                <label htmlFor="condition" className="text-sm font-semibold text-[#172033]">
+                  Equipment Condition *
+                </label>
+                <select id="condition" name="condition" value={formData.condition} onChange={handleChange} className={inputClass} required>
+                  <option value="New">New</option>
+                  <option value="Like New">Like New</option>
+                  <option value="Good">Good</option>
+                  <option value="Fair">Fair</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="brand" className="text-sm font-semibold text-[#172033]">
+                  Brand *
+                </label>
+                <input id="brand" name="brand" value={formData.brand} onChange={handleChange} placeholder="e.g. Caterpillar" className={inputClass} required />
+              </div>
+
+              <div>
+                <label htmlFor="model" className="text-sm font-semibold text-[#172033]">
+                  Model *
+                </label>
+                <input id="model" name="model" value={formData.model} onChange={handleChange} placeholder="e.g. CAT 320D" className={inputClass} required />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="terms" className="text-sm font-semibold text-[#172033]">
+                Rental Terms and Conditions *
+              </label>
+              <textarea id="terms" name="terms" value={formData.terms} onChange={handleChange} placeholder="Describe deposit, usage rules, delivery, and return conditions..." className={inputClass} rows={4} minLength={5} required />
             </div>
 
             <div>

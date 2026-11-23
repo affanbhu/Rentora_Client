@@ -26,7 +26,29 @@ interface Booking {
   endDate: string;
   totalDays: number;
   totalPrice: number;
+  quantity?: number;
+  phone?: string;
+  deliveryAddress?: string;
+  notes?: string;
   status: string;
+}
+
+interface OwnerAnalytics {
+  stats: {
+    totalBookings: number;
+    totalListedEquipment: number;
+    completedRentals: number;
+    paidBookings: number;
+    pendingBookings: number;
+    confirmedBookings: number;
+    totalEarnings: number;
+    averageBookingValue: number;
+  };
+  monthlyRevenue: {
+    month: string;
+    year: number;
+    revenue: number;
+  }[];
 }
 
 interface UserProfile {
@@ -46,10 +68,13 @@ export default function OwnerDashboard() {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [analytics, setAnalytics] = useState<OwnerAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [bookingActionId, setBookingActionId] = useState("");
   const [bookingMessage, setBookingMessage] = useState("");
+  const [equipmentActionId, setEquipmentActionId] = useState("");
+  const [equipmentMessage, setEquipmentMessage] = useState("");
 
   useEffect(() => {
     if (isPending) return;
@@ -82,17 +107,25 @@ export default function OwnerDashboard() {
 
         setProfile(profileResult.user);
 
-        const [equipmentResponse, bookingsResponse] = await Promise.all([
+        const [
+          equipmentResponse,
+          bookingsResponse,
+          analyticsResponse,
+        ] = await Promise.all([
           fetch(`${API_URL}/api/owner/equipment`, {
             credentials: "include",
           }),
           fetch(`${API_URL}/api/owner/bookings`, {
             credentials: "include",
           }),
+          fetch(`${API_URL}/api/owner/analytics`, {
+            credentials: "include",
+          }),
         ]);
 
         const equipmentResult = await equipmentResponse.json();
         const bookingsResult = await bookingsResponse.json();
+        const analyticsResult = await analyticsResponse.json();
 
         if (!equipmentResponse.ok || !equipmentResult.success) {
           throw new Error(
@@ -106,8 +139,15 @@ export default function OwnerDashboard() {
           );
         }
 
+        if (!analyticsResponse.ok || !analyticsResult.success) {
+          throw new Error(
+            analyticsResult.message || "Unable to load business analytics."
+          );
+        }
+
         setEquipment(equipmentResult.data || []);
         setBookings(bookingsResult.data || []);
+        setAnalytics(analyticsResult);
       } catch (err) {
         setError(
           err instanceof Error
@@ -170,6 +210,46 @@ export default function OwnerDashboard() {
       );
     } finally {
       setBookingActionId("");
+    }
+  };
+
+  const handleDeleteEquipment = async (equipmentId: string) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this equipment? This action cannot be undone."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setEquipmentActionId(equipmentId);
+      setEquipmentMessage("");
+      setError("");
+
+      const response = await fetch(
+        `${API_URL}/api/owner/equipment/${equipmentId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Unable to delete equipment.");
+      }
+
+      setEquipment((previous) =>
+        previous.filter((item) => item._id !== equipmentId)
+      );
+
+      setEquipmentMessage("Equipment deleted successfully.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to delete equipment."
+      );
+    } finally {
+      setEquipmentActionId("");
     }
   };
 
@@ -255,6 +335,12 @@ export default function OwnerDashboard() {
           </div>
         )}
 
+        {equipmentMessage && (
+          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-green-700">
+            {equipmentMessage}
+          </div>
+        )}
+
         <section className="mb-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
@@ -335,6 +421,132 @@ export default function OwnerDashboard() {
               View Profile →
             </p>
           </Link>
+        </section>
+
+        {/* Business Analytics */}
+        <section className="mb-10 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm md:p-8">
+          <div className="mb-6">
+            <p className="text-sm font-semibold uppercase tracking-widest text-[#f47735]">
+              Business Performance
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-[#172033]">
+              Business Analytics
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Track your bookings, successful payments, and rental revenue.
+            </p>
+          </div>
+
+          {analytics ? (
+            <>
+              <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  {
+                    title: "Total Bookings",
+                    value: analytics.stats.totalBookings,
+                    icon: "📋",
+                  },
+                  {
+                    title: "Total Listed Equipment",
+                    value: analytics.stats.totalListedEquipment,
+                    icon: "🚜",
+                  },
+                  {
+                    title: "Completed Rentals",
+                    value: analytics.stats.completedRentals,
+                    icon: "✅",
+                  },
+                  {
+                    title: "Paid Bookings",
+                    value: analytics.stats.paidBookings,
+                    icon: "✓",
+                  },
+                  {
+                    title: "Pending Bookings",
+                    value: analytics.stats.pendingBookings,
+                    icon: "⏳",
+                  },
+                  {
+                    title: "Confirmed Bookings",
+                    value: analytics.stats.confirmedBookings,
+                    icon: "📅",
+                  },
+                  {
+                    title: "Total Earnings",
+                    value: formatPrice(analytics.stats.totalEarnings),
+                    icon: "৳",
+                  },
+                  {
+                    title: "Average Booking Value",
+                    value: formatPrice(analytics.stats.averageBookingValue),
+                    icon: "📈",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.title}
+                    className="rounded-xl border border-gray-100 bg-gray-50 p-5"
+                  >
+                    <div className="text-2xl">{item.icon}</div>
+                    <p className="mt-3 text-sm font-medium text-gray-500">
+                      {item.title}
+                    </p>
+                    <p className="mt-2 text-2xl font-extrabold text-[#172033]">
+                      {item.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-gray-100 pt-7">
+                <h3 className="text-lg font-bold text-[#172033]">
+                  Monthly Revenue
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Revenue from successfully paid bookings over the last 12 months.
+                </p>
+
+                <div className="mt-6 space-y-4">
+                  {analytics.monthlyRevenue.map((item, index) => {
+                    const maximumRevenue = Math.max(
+                      ...analytics.monthlyRevenue.map((month) => month.revenue),
+                      1
+                    );
+
+                    const barWidth =
+                      item.revenue > 0
+                        ? Math.max((item.revenue / maximumRevenue) * 100, 2)
+                        : 0;
+
+                    return (
+                      <div
+                        key={`${item.year}-${item.month}-${index}`}
+                        className="grid grid-cols-[75px_1fr_auto] items-center gap-3"
+                      >
+                        <span className="text-sm font-medium text-gray-600">
+                          {item.month} {item.year}
+                        </span>
+
+                        <div className="h-3 overflow-hidden rounded-full bg-gray-100">
+                          <div
+                            className="h-full rounded-full bg-[#f47735] transition-all"
+                            style={{ width: `${barWidth}%` }}
+                          />
+                        </div>
+
+                        <span className="min-w-[65px] text-right text-sm font-semibold text-[#172033]">
+                          {formatPrice(item.revenue)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="rounded-xl bg-gray-50 p-6 text-center text-sm text-gray-500">
+              Business analytics are not available yet.
+            </p>
+          )}
         </section>
 
         {/* Rental Requests */}
@@ -434,6 +646,35 @@ export default function OwnerDashboard() {
                     </div>
                   </div>
 
+                  {(booking.phone || booking.deliveryAddress || booking.notes) && (
+                    <div className="mt-5 grid gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-2">
+                      {booking.quantity !== undefined && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Quantity</p>
+                          <p className="mt-1 font-semibold text-[#172033]">{booking.quantity}</p>
+                        </div>
+                      )}
+                      {booking.phone && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Contact Phone</p>
+                          <p className="mt-1 font-semibold text-[#172033]">{booking.phone}</p>
+                        </div>
+                      )}
+                      {booking.deliveryAddress && (
+                        <div className="sm:col-span-2">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Delivery Address</p>
+                          <p className="mt-1 text-sm text-[#172033]">{booking.deliveryAddress}</p>
+                        </div>
+                      )}
+                      {booking.notes && (
+                        <div className="sm:col-span-2">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Customer Notes</p>
+                          <p className="mt-1 text-sm text-[#172033]">{booking.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {booking.status === "pending" && (
                     <div className="mt-5 flex flex-wrap gap-3 border-t border-gray-100 pt-4">
                       <button
@@ -524,12 +765,30 @@ export default function OwnerDashboard() {
                     </span>
                   </p>
 
-                  <Link
-                    href={`/equipment/${item.slug}`}
-                    className="mt-4 inline-block font-semibold text-[#172033] hover:text-[#f47735]"
-                  >
-                    View Details →
-                  </Link>
+                  <div className="mt-5 flex flex-wrap items-center gap-3">
+                    <Link
+                      href={`/equipment/${item.slug}`}
+                      className="font-semibold text-[#172033] hover:text-[#f47735]"
+                    >
+                      View Details →
+                    </Link>
+
+                    <Link
+                      href={`/owner/edit-equipment/${item._id}`}
+                      className="rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                    >
+                      Edit
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteEquipment(item._id)}
+                      disabled={equipmentActionId === item._id}
+                      className="rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {equipmentActionId === item._id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -3,12 +3,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "@/lib/auth-client";
 import { motion } from "framer-motion";
-import {
-  FavoriteEquipment,
-  getFavorites,
-  toggleFavorite,
-} from "@/lib/favorites";
+import { FavoriteEquipment } from "@/lib/favorites";
 
 const categories = [
   { name: "Construction", icon: "🏗️" },
@@ -67,8 +64,10 @@ const sectionAnimation = {
 };
 
 export default function Home() {
+  const { data: session, isPending } = useSession();
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [favorites, setFavorites] = useState<FavoriteEquipment[]>([]);
+  const [favoriteActionId, setFavoriteActionId] = useState("");
   const [stats, setStats] = useState<HomeStats | null>(null);
   const [reviews, setReviews] = useState<CustomerReview[]>([]);
   const [loadingEquipment, setLoadingEquipment] = useState(true);
@@ -80,8 +79,6 @@ export default function Home() {
   const [locationTerm, setLocationTerm] = useState("");
 
   useEffect(() => {
-    setFavorites(getFavorites());
-
     const fetchHomepageData = async () => {
       const apiUrl =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
@@ -144,6 +141,34 @@ export default function Home() {
     fetchHomepageData();
   }, []);
 
+  useEffect(() => {
+    if (isPending || !session?.user) {
+      setFavorites([]);
+      return;
+    }
+
+    const fetchFavorites = async () => {
+      try {
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
+        const response = await fetch(`${apiUrl}/api/favorites`, {
+          credentials: "include",
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          setFavorites(result.data || []);
+        }
+      } catch (error) {
+        console.error("Unable to load favorites:", error);
+      }
+    };
+
+    fetchFavorites();
+  }, [isPending, session]);
+
   const filteredEquipment = useMemo(() => {
     return equipment.filter((item) => {
       const matchesSearch =
@@ -162,8 +187,50 @@ export default function Home() {
     });
   }, [equipment, searchTerm, selectedCategory, locationTerm]);
 
-  const handleFavorite = (item: Equipment) => {
-    setFavorites(toggleFavorite(item));
+  const handleFavorite = async (item: Equipment) => {
+    if (!session?.user) {
+      window.location.href = "/signin";
+      return;
+    }
+
+    try {
+      setFavoriteActionId(item._id);
+
+      const alreadySaved = favorites.some(
+        (favorite) => favorite._id === item._id
+      );
+
+      const apiUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
+      const response = await fetch(
+        `${apiUrl}/api/favorites/${item._id}`,
+        {
+          method: alreadySaved ? "DELETE" : "POST",
+          credentials: "include",
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Unable to update favorites.");
+      }
+
+      setFavorites((current) =>
+        alreadySaved
+          ? current.filter((favorite) => favorite._id !== item._id)
+          : [...current, item]
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to update favorites."
+      );
+    } finally {
+      setFavoriteActionId("");
+    }
   };
 
   const statItems = [
@@ -471,6 +538,7 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => handleFavorite(item)}
+                        disabled={favoriteActionId === item._id}
                         aria-label={
                           saved
                             ? `Remove ${item.name} from favorites`

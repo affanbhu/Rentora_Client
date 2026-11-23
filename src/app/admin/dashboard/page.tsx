@@ -9,6 +9,16 @@ import { useSession } from "@/lib/auth-client";
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
+type UserRole = "customer" | "owner" | "admin";
+
+type AdminUser = {
+  _id: string;
+  name?: string;
+  email: string;
+  role: UserRole;
+  createdAt?: string;
+};
+
 type DashboardData = {
   stats: {
     totalUsers: number;
@@ -79,8 +89,13 @@ export default function AdminDashboardPage() {
   const router = useRouter();
 
   const [data, setData] = useState<DashboardData | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [usersError, setUsersError] = useState("");
+  const [roleMessage, setRoleMessage] = useState("");
 
   useEffect(() => {
     if (isPending) return;
@@ -125,6 +140,38 @@ export default function AdminDashboardPage() {
         if (!cancelled) {
           setData(result);
         }
+
+        // Load all users for the role management section.
+        if (!cancelled) {
+          setUsersLoading(true);
+        }
+
+        try {
+          const usersResponse = await fetch(`${API_URL}/api/admin/users`, {
+            credentials: "include",
+          });
+
+          const usersResult = await usersResponse.json();
+
+          if (!usersResponse.ok || !usersResult.success) {
+            throw new Error(usersResult.message || "Failed to load users.");
+          }
+
+          if (!cancelled) {
+            setUsers(usersResult.data || []);
+            setUsersError("");
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setUsersError(
+              err instanceof Error ? err.message : "Unable to load users."
+            );
+          }
+        } finally {
+          if (!cancelled) {
+            setUsersLoading(false);
+          }
+        }
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -144,6 +191,83 @@ export default function AdminDashboardPage() {
       cancelled = true;
     };
   }, [session, isPending, router]);
+
+  const handleRoleChange = async (
+    userId: string,
+    newRole: UserRole
+  ) => {
+    setUpdatingUserId(userId);
+    setUsersError("");
+    setRoleMessage("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/admin/users/${userId}/role`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ role: newRole }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to update user role.");
+      }
+
+      setUsers((previousUsers) =>
+        previousUsers.map((user) =>
+          user._id === userId ? { ...user, role: newRole } : user
+        )
+      );
+
+      setData((previousData) => {
+        if (!previousData) return previousData;
+
+        return {
+          ...previousData,
+          recentUsers: previousData.recentUsers.map((user) =>
+            user._id === userId ? { ...user, role: newRole } : user
+          ),
+          stats: {
+            ...previousData.stats,
+            totalCustomers:
+              previousData.stats.totalCustomers +
+              (newRole === "customer" ? 1 : 0),
+            totalOwners:
+              previousData.stats.totalOwners +
+              (newRole === "owner" ? 1 : 0),
+          },
+        };
+      });
+
+      setRoleMessage("User role updated successfully.");
+    } catch (err) {
+      setUsersError(
+        err instanceof Error ? err.message : "Something went wrong."
+      );
+
+      // Reload the page data so the selected role stays accurate.
+      try {
+        const usersResponse = await fetch(`${API_URL}/api/admin/users`, {
+          credentials: "include",
+        });
+        const usersResult = await usersResponse.json();
+
+        if (usersResponse.ok && usersResult.success) {
+          setUsers(usersResult.data || []);
+        }
+      } catch {
+        // Keep the original error message.
+      }
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
 
   if (isPending || loading) {
     return (
@@ -198,6 +322,8 @@ export default function AdminDashboardPage() {
     0,
     data.stats.totalBookings - data.stats.paidBookings
   );
+
+  const currentUserId = session?.user?.id;
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
@@ -333,6 +459,108 @@ export default function AdminDashboardPage() {
               </p>
             </div>
           </div>
+        </section>
+
+        {/* User Management */}
+        <section className="mb-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-5">
+            <h2 className="text-xl font-bold text-gray-900">
+              User Management
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              View registered users and manage their account roles.
+            </p>
+          </div>
+
+          {roleMessage && (
+            <p className="mb-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">
+              {roleMessage}
+            </p>
+          )}
+
+          {usersError && (
+            <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+              {usersError}
+            </p>
+          )}
+
+          {usersLoading ? (
+            <p className="text-gray-500">Loading users...</p>
+          ) : users.length === 0 ? (
+            <p className="text-gray-500">No users found.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[650px] text-left text-sm">
+                <thead>
+                  <tr className="border-b text-gray-500">
+                    <th className="py-3 pr-4">Name</th>
+                    <th className="py-3 pr-4">Email</th>
+                    <th className="py-3 pr-4">Current Role</th>
+                    <th className="py-3">Change Role</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => {
+                    const isCurrentUser = user._id === currentUserId;
+                    const isUpdating = updatingUserId === user._id;
+
+                    return (
+                      <tr key={user._id} className="border-b last:border-0">
+                        <td className="py-4 pr-4 font-medium text-gray-900">
+                          {user.name || "N/A"}
+                          {isCurrentUser && (
+                            <span className="ml-2 text-xs text-blue-600">
+                              (You)
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-4 pr-4 text-gray-600">
+                          {user.email}
+                        </td>
+
+                        <td className="py-4 pr-4">
+                          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold capitalize text-gray-700">
+                            {user.role}
+                          </span>
+                        </td>
+
+                        <td className="py-4">
+                          <select
+                            value={user.role}
+                            disabled={isCurrentUser || isUpdating}
+                            onChange={(event) =>
+                              handleRoleChange(
+                                user._id,
+                                event.target.value as UserRole
+                              )
+                            }
+                            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm capitalize outline-none focus:border-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                          >
+                            <option value="customer">Customer</option>
+                            <option value="owner">Owner</option>
+                            <option value="admin">Admin</option>
+                          </select>
+
+                          {isUpdating && (
+                            <span className="ml-2 text-xs text-gray-500">
+                              Updating...
+                            </span>
+                          )}
+
+                          {isCurrentUser && (
+                            <p className="mt-1 text-xs text-gray-400">
+                              Your own role cannot be changed.
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section className="mb-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">

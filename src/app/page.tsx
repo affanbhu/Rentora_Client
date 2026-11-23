@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +25,15 @@ interface HomeStats {
   totalEquipment: number;
   totalCustomers: number;
   totalBookings: number;
+}
+
+interface CustomerReview {
+  _id: string;
+  equipmentName?: string;
+  userName?: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
 }
 
 const benefits = [
@@ -60,8 +70,11 @@ export default function Home() {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [favorites, setFavorites] = useState<FavoriteEquipment[]>([]);
   const [stats, setStats] = useState<HomeStats | null>(null);
+  const [reviews, setReviews] = useState<CustomerReview[]>([]);
   const [loadingEquipment, setLoadingEquipment] = useState(true);
+  const [loadingReviews, setLoadingReviews] = useState(true);
   const [equipmentError, setEquipmentError] = useState("");
+  const [reviewsError, setReviewsError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [locationTerm, setLocationTerm] = useState("");
@@ -74,10 +87,12 @@ export default function Home() {
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
       try {
-        const [equipmentResponse, statsResponse] = await Promise.all([
-          fetch(`${apiUrl}/api/equipment`),
-          fetch(`${apiUrl}/api`),
-        ]);
+        const [equipmentResponse, statsResponse, reviewsResponse] =
+          await Promise.all([
+            fetch(`${apiUrl}/api/equipment`),
+            fetch(`${apiUrl}/api`),
+            fetch(`${apiUrl}/api/reviews/recent`),
+          ]);
 
         if (!equipmentResponse.ok) {
           throw new Error("Unable to load equipment. Please try again.");
@@ -101,12 +116,28 @@ export default function Home() {
             setStats(statsResult.stats);
           }
         }
+
+        if (reviewsResponse.ok) {
+          const reviewsResult = await reviewsResponse.json();
+
+          if (
+            reviewsResult.success &&
+            Array.isArray(reviewsResult.data)
+          ) {
+            setReviews(reviewsResult.data);
+          } else {
+            setReviewsError("Unable to load customer reviews.");
+          }
+        } else {
+          setReviewsError("Unable to load customer reviews.");
+        }
       } catch (error) {
         setEquipmentError(
           error instanceof Error ? error.message : "Something went wrong."
         );
       } finally {
         setLoadingEquipment(false);
+        setLoadingReviews(false);
       }
     };
 
@@ -450,7 +481,9 @@ export default function Home() {
                           saved ? "Remove from favorites" : "Add to favorites"
                         }
                         className={`absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white text-2xl shadow-sm transition hover:scale-110 ${
-                          saved ? "text-red-500" : "text-gray-500 hover:text-red-500"
+                          saved
+                            ? "text-red-500"
+                            : "text-gray-500 hover:text-red-500"
                         }`}
                       >
                         {saved ? "♥" : "♡"}
@@ -561,36 +594,121 @@ export default function Home() {
         </div>
       </motion.section>
 
-      {/* Customer Reviews */}
+      {/* Real Customer Reviews */}
       <section className="bg-[#f7f8fa] px-5 py-20">
         <motion.div
-          className="mx-auto max-w-4xl text-center"
+          className="mx-auto max-w-7xl"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
           variants={sectionAnimation}
         >
-          <p className="text-xs font-bold uppercase tracking-[3px] text-[#f47735]">
-            Customer feedback
-          </p>
+          <div className="text-center">
+            <p className="text-xs font-bold uppercase tracking-[3px] text-[#f47735]">
+              Customer feedback
+            </p>
 
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-[#172033] sm:text-4xl">
-            Customer Reviews
-          </h2>
+            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-[#172033] sm:text-4xl">
+              What our customers say.
+            </h2>
 
-          <div className="mt-8 rounded-2xl border border-gray-200 bg-white px-6 py-12 shadow-sm">
-            <div className="text-4xl text-[#f47735]">★</div>
-
-            <h3 className="mt-4 text-xl font-bold text-[#172033]">
-              Your feedback matters
-            </h3>
-
-            <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-gray-500">
-              Customer reviews will appear here once the review feature is
-              available. We want every review to come from a real Rentora
-              customer.
+            <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-gray-500">
+              Real feedback from customers who have rented equipment through
+              Rentora.
             </p>
           </div>
+
+          {loadingReviews ? (
+            <div className="mt-10 py-12 text-center text-gray-500">
+              Loading customer reviews...
+            </div>
+          ) : reviewsError ? (
+            <div className="mt-10 rounded-2xl border border-red-200 bg-white p-8 text-center text-sm text-red-600">
+              {reviewsError}
+            </div>
+          ) : reviews.length === 0 ? (
+            <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-gray-200 bg-white px-6 py-12 text-center shadow-sm">
+              <div className="text-4xl text-[#f47735]">★</div>
+
+              <h3 className="mt-4 text-xl font-bold text-[#172033]">
+                Be the first to share your experience!
+              </h3>
+
+              <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-gray-500">
+                Customer reviews will appear here after customers complete
+                their bookings and submit their feedback.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {reviews.map((review, index) => (
+                <motion.article
+                  key={review._id}
+                  className="flex flex-col rounded-2xl border border-gray-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.1 }}
+                  transition={{ duration: 0.4, delay: (index % 3) * 0.08 }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="rounded-full bg-[#fff1e9] px-3 py-1.5 text-xs font-semibold text-[#f47735]">
+                      Verified customer
+                    </span>
+
+                    <span className="text-sm font-bold text-[#f47735]">
+                      {Number(review.rating) || 0}/5
+                    </span>
+                  </div>
+
+                  <div
+                    className="mt-4 text-xl tracking-widest text-[#f47735]"
+                    aria-label={`${review.rating} out of 5 stars`}
+                  >
+                    {"★".repeat(
+                      Math.max(0, Math.min(5, Number(review.rating) || 0))
+                    )}
+                    <span className="text-gray-200">
+                      {"★".repeat(
+                        5 -
+                          Math.max(
+                            0,
+                            Math.min(5, Number(review.rating) || 0)
+                          )
+                      )}
+                    </span>
+                  </div>
+
+                  <p className="mt-5 flex-1 text-sm leading-7 text-gray-600">
+                    “{review.comment}”
+                  </p>
+
+                  <div className="mt-6 border-t border-gray-100 pt-5">
+                    <h3 className="font-bold text-[#172033]">
+                      {review.userName || "Rentora Customer"}
+                    </h3>
+
+                    <p className="mt-1 text-xs text-[#f47735]">
+                      {review.equipmentName || "Equipment rental"}
+                    </p>
+
+                    <p className="mt-2 text-xs text-gray-400">
+                      {review.createdAt &&
+                      !Number.isNaN(Date.parse(review.createdAt))
+                        ? new Date(review.createdAt).toLocaleDateString(
+                            "en-BD",
+                            {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            }
+                          )
+                        : "Customer review"}
+                    </p>
+                  </div>
+                </motion.article>
+              ))}
+            </div>
+          )}
         </motion.div>
       </section>
 

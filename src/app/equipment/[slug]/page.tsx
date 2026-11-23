@@ -18,6 +18,23 @@ interface Equipment {
   availability: string;
 }
 
+interface Review {
+  _id: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+interface ReviewResponse {
+  success: boolean;
+  stats: {
+    averageRating: number;
+    totalReviews: number;
+  };
+  data: Review[];
+}
+
 export default function EquipmentDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -27,11 +44,16 @@ export default function EquipmentDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [averageRating, setAverageRating] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState("");
+
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
-  const [bookingSuccess, setBookingSuccess] = useState("");
 
   const slug = params.slug as string;
   const API_URL =
@@ -97,13 +119,48 @@ export default function EquipmentDetailsPage() {
     fetchEquipment();
   }, [slug, session, isPending, router, API_URL]);
 
+  useEffect(() => {
+    if (!slug || isPending || !session?.user) return;
+
+    const fetchReviews = async () => {
+      try {
+        setReviewsLoading(true);
+        setReviewsError("");
+
+        const response = await fetch(
+          `${API_URL}/api/equipment/${encodeURIComponent(slug)}/reviews`,
+          {
+            credentials: "include",
+          }
+        );
+
+        const result: ReviewResponse = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error("Unable to load equipment reviews.");
+        }
+
+        setReviews(result.data || []);
+        setAverageRating(result.stats?.averageRating || 0);
+        setTotalReviews(result.stats?.totalReviews || 0);
+      } catch (err) {
+        setReviewsError(
+          err instanceof Error ? err.message : "Unable to load reviews."
+        );
+      } finally {
+        setReviewsLoading(false);
+      }
+    };
+
+    fetchReviews();
+  }, [slug, session, isPending, API_URL]);
+
   const handleBooking = async (
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
 
     setBookingError("");
-    setBookingSuccess("");
 
     if (!startDate || !endDate) {
       setBookingError("Please select your rental dates.");
@@ -118,7 +175,6 @@ export default function EquipmentDetailsPage() {
     try {
       setBookingLoading(true);
 
-      // Step 1: Create the booking
       const bookingResponse = await fetch(`${API_URL}/api/bookings`, {
         method: "POST",
         headers: {
@@ -146,7 +202,6 @@ export default function EquipmentDetailsPage() {
         throw new Error("Booking was created, but its ID was not returned.");
       }
 
-      // Step 2: Create Stripe Checkout session
       const paymentResponse = await fetch(
         `${API_URL}/api/payments/create-checkout-session`,
         {
@@ -176,7 +231,6 @@ export default function EquipmentDetailsPage() {
         throw new Error("Stripe did not return a checkout URL.");
       }
 
-      // Step 3: Redirect customer to Stripe Checkout
       window.location.href = checkoutUrl;
     } catch (err) {
       setBookingError(
@@ -184,6 +238,14 @@ export default function EquipmentDetailsPage() {
       );
       setBookingLoading(false);
     }
+  };
+
+  const formatReviewDate = (date: string) => {
+    return new Date(date).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   if (isPending || loading) {
@@ -197,21 +259,21 @@ export default function EquipmentDetailsPage() {
   if (!session?.user) return null;
 
   return (
-    <>
-      <main className="min-h-screen bg-gray-50 px-5 py-12">
-        <div className="mx-auto max-w-6xl">
-          <Link
-            href="/"
-            className="mb-8 inline-block font-semibold text-[#f47735] hover:underline"
-          >
-            ← Back to Home
-          </Link>
+    <main className="min-h-screen bg-gray-50 px-5 py-12">
+      <div className="mx-auto max-w-6xl">
+        <Link
+          href="/"
+          className="mb-8 inline-block font-semibold text-[#f47735] hover:underline"
+        >
+          ← Back to Home
+        </Link>
 
-          {error ? (
-            <div className="rounded-xl bg-white p-8 text-center text-red-600 shadow-sm">
-              {error}
-            </div>
-          ) : equipment ? (
+        {error ? (
+          <div className="rounded-xl bg-white p-8 text-center text-red-600 shadow-sm">
+            {error}
+          </div>
+        ) : equipment ? (
+          <>
             <div className="grid gap-10 rounded-2xl bg-white p-6 shadow-sm md:grid-cols-2 md:p-10">
               <div>
                 <img
@@ -256,7 +318,6 @@ export default function EquipmentDetailsPage() {
                   </div>
                 </div>
 
-                {/* Booking Form */}
                 <form
                   onSubmit={handleBooking}
                   className="mt-8 space-y-5 border-t border-gray-100 pt-6"
@@ -281,7 +342,6 @@ export default function EquipmentDetailsPage() {
                       onChange={(e) => {
                         setStartDate(e.target.value);
                         setBookingError("");
-                        setBookingSuccess("");
                         if (endDate && e.target.value > endDate) {
                           setEndDate("");
                         }
@@ -307,7 +367,6 @@ export default function EquipmentDetailsPage() {
                       onChange={(e) => {
                         setEndDate(e.target.value);
                         setBookingError("");
-                        setBookingSuccess("");
                       }}
                       required
                       className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-800 outline-none focus:border-[#f47735]"
@@ -345,12 +404,6 @@ export default function EquipmentDetailsPage() {
                     </p>
                   )}
 
-                  {bookingSuccess && (
-                    <p className="rounded-lg bg-green-50 p-3 text-sm font-medium text-green-700">
-                      {bookingSuccess}
-                    </p>
-                  )}
-
                   <button
                     type="submit"
                     disabled={
@@ -366,9 +419,94 @@ export default function EquipmentDetailsPage() {
                 </form>
               </div>
             </div>
-          ) : null}
-        </div>
-      </main>
-    </>
+
+            <section className="mt-10 rounded-2xl bg-white p-6 shadow-sm md:p-10">
+              <div className="flex flex-col justify-between gap-5 border-b border-gray-100 pb-6 sm:flex-row sm:items-center">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-wider text-[#f47735]">
+                    Customer feedback
+                  </p>
+                  <h2 className="mt-2 text-2xl font-extrabold text-[#172033]">
+                    Reviews & Ratings
+                  </h2>
+                </div>
+
+                <div className="rounded-xl bg-orange-50 px-6 py-4">
+                  <p className="text-3xl font-extrabold text-[#172033]">
+                    {averageRating.toFixed(1)}{" "}
+                    <span className="text-yellow-400">★</span>
+                  </p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {totalReviews} customer review
+                    {totalReviews === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+
+              {reviewsLoading ? (
+                <p className="py-10 text-center text-gray-500">
+                  Loading customer reviews...
+                </p>
+              ) : reviewsError ? (
+                <p className="py-10 text-center text-red-600">
+                  {reviewsError}
+                </p>
+              ) : reviews.length === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="text-5xl">⭐</div>
+                  <h3 className="mt-4 text-lg font-bold text-[#172033]">
+                    No reviews yet
+                  </h3>
+                  <p className="mt-2 text-gray-500">
+                    Be the first customer to share your experience.
+                  </p>
+                  <Link
+                    href="/my-bookings"
+                    className="mt-5 inline-block font-semibold text-[#f47735] hover:underline"
+                  >
+                    Go to My Bookings
+                  </Link>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {reviews.map((review) => (
+                    <article key={review._id} className="py-6">
+                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                        <div>
+                          <h3 className="font-bold text-[#172033]">
+                            {review.userName}
+                          </h3>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formatReviewDate(review.createdAt)}
+                          </p>
+                        </div>
+
+                        <div
+                          className="text-xl tracking-widest text-yellow-400"
+                          aria-label={`${review.rating} out of 5 stars`}
+                        >
+                          {"★".repeat(
+                            Math.max(0, Math.min(5, review.rating))
+                          )}
+                          <span className="text-gray-300">
+                            {"★".repeat(
+                              5 - Math.max(0, Math.min(5, review.rating))
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="mt-4 leading-7 text-gray-600">
+                        {review.comment}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        ) : null}
+      </div>
+    </main>
   );
 }

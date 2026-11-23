@@ -1,51 +1,65 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
+import { motion } from "framer-motion";
+import {
+  FavoriteEquipment,
+  getFavorites,
+  toggleFavorite,
+} from "@/lib/favorites";
 
 const categories = [
-  { name: "Construction", icon: "🏗️", count: "120+ items" },
-  { name: "Vehicles", icon: "🚜", count: "85+ items" },
-  { name: "Power Tools", icon: "🔧", count: "200+ items" },
-  { name: "Electronics", icon: "💻", count: "95+ items" },
-  { name: "Home & Living", icon: "🏠", count: "70+ items" },
-  { name: "Events", icon: "🎪", count: "60+ items" },
+  { name: "Construction", icon: "🏗️" },
+  { name: "Vehicles", icon: "🚜" },
+  { name: "Power Tools", icon: "🔧" },
+  { name: "Electronics", icon: "💻" },
+  { name: "Home & Living", icon: "🏠" },
+  { name: "Events", icon: "🎪" },
 ];
 
-interface Equipment {
-  _id: string;
-  slug: string;
-  name: string;
-  category: string;
-  description: string;
-  dailyRate: number;
-  location: string;
-  imageUrl: string;
-  availability: string;
+interface Equipment extends FavoriteEquipment {}
+
+interface HomeStats {
+  totalEquipment: number;
+  totalCustomers: number;
+  totalBookings: number;
 }
 
 const benefits = [
   {
     icon: "✓",
     title: "Verified Equipment",
-    description: "Every listing is reviewed to help you rent with confidence.",
+    description:
+      "Find equipment listings and choose what works best for your needs.",
   },
   {
     icon: "↗",
     title: "Simple Booking",
-    description: "Find the equipment you need and arrange your rental easily.",
+    description:
+      "Find the equipment you need and arrange your rental easily.",
   },
   {
     icon: "◎",
     title: "Trusted Community",
-    description: "Connect with equipment owners and renters in one place.",
+    description:
+      "Connect with equipment owners and renters in one place.",
   },
 ];
 
+const sectionAnimation = {
+  hidden: { opacity: 0, y: 30 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6 },
+  },
+};
+
 export default function Home() {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteEquipment[]>([]);
+  const [stats, setStats] = useState<HomeStats | null>(null);
   const [loadingEquipment, setLoadingEquipment] = useState(true);
   const [equipmentError, setEquipmentError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -53,24 +67,40 @@ export default function Home() {
   const [locationTerm, setLocationTerm] = useState("");
 
   useEffect(() => {
-    const fetchEquipment = async () => {
+    setFavorites(getFavorites());
+
+    const fetchHomepageData = async () => {
+      const apiUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
       try {
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+        const [equipmentResponse, statsResponse] = await Promise.all([
+          fetch(`${apiUrl}/api/equipment`),
+          fetch(`${apiUrl}/api`),
+        ]);
 
-        const response = await fetch(`${apiUrl}/api/equipment`);
-
-        if (!response.ok) {
+        if (!equipmentResponse.ok) {
           throw new Error("Unable to load equipment. Please try again.");
         }
 
-        const result = await response.json();
+        const equipmentResult = await equipmentResponse.json();
 
-        if (!result.success || !Array.isArray(result.data)) {
+        if (
+          !equipmentResult.success ||
+          !Array.isArray(equipmentResult.data)
+        ) {
           throw new Error("The equipment response was invalid.");
         }
 
-        setEquipment(result.data);
+        setEquipment(equipmentResult.data);
+
+        if (statsResponse.ok) {
+          const statsResult = await statsResponse.json();
+
+          if (statsResult.success && statsResult.stats) {
+            setStats(statsResult.stats);
+          }
+        }
       } catch (error) {
         setEquipmentError(
           error instanceof Error ? error.message : "Something went wrong."
@@ -80,7 +110,7 @@ export default function Home() {
       }
     };
 
-    fetchEquipment();
+    fetchHomepageData();
   }, []);
 
   const filteredEquipment = useMemo(() => {
@@ -101,19 +131,40 @@ export default function Home() {
     });
   }, [equipment, searchTerm, selectedCategory, locationTerm]);
 
+  const handleFavorite = (item: Equipment) => {
+    setFavorites(toggleFavorite(item));
+  };
+
+  const statItems = [
+    {
+      value: stats ? stats.totalEquipment.toLocaleString("en-BD") : "—",
+      label: "Equipment Listings",
+    },
+    {
+      value: stats ? stats.totalCustomers.toLocaleString("en-BD") : "—",
+      label: "Registered Customers",
+    },
+    {
+      value: stats ? stats.totalBookings.toLocaleString("en-BD") : "—",
+      label: "Total Bookings",
+    },
+  ];
+
   return (
     <main className="min-h-screen overflow-hidden">
-      
-
       {/* Hero */}
       <section className="relative bg-[#172033]">
-        <div className="absolute inset-0 opacity-10">
+        <div className="absolute inset-0 overflow-hidden opacity-10">
           <div className="absolute -right-20 -top-40 h-96 w-96 rounded-full border-[50px] border-white" />
           <div className="absolute -bottom-60 left-1/3 h-96 w-96 rounded-full border-[50px] border-white" />
         </div>
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 py-20 md:grid-cols-2 md:py-28 lg:px-8">
-          <div>
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={sectionAnimation}
+          >
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold tracking-wide text-orange-300">
               <span className="h-2 w-2 rounded-full bg-orange-400" />
               THE SMARTER WAY TO RENT
@@ -147,70 +198,67 @@ export default function Home() {
             </div>
 
             <div className="mt-12 flex flex-wrap gap-8 border-t border-white/15 pt-8">
-              <div>
-                <p className="text-2xl font-extrabold text-white">500+</p>
-                <p className="mt-1 text-xs text-gray-400">
-                  Equipment Listings
-                </p>
-              </div>
-
-              <div>
-                <p className="text-2xl font-extrabold text-white">200+</p>
-                <p className="mt-1 text-xs text-gray-400">Happy Renters</p>
-              </div>
-
-              <div>
-                <p className="text-2xl font-extrabold text-white">4.9/5</p>
-                <p className="mt-1 text-xs text-gray-400">Customer Rating</p>
-              </div>
+              {statItems.map((stat) => (
+                <div key={stat.label}>
+                  <p className="text-2xl font-extrabold text-white">
+                    {stat.value}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-400">{stat.label}</p>
+                </div>
+              ))}
             </div>
-          </div>
+          </motion.div>
 
-          <div className="relative mx-auto w-full max-w-lg">
+          <motion.div
+            className="relative mx-auto w-full max-w-lg"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+          >
             <div className="absolute -inset-5 rounded-3xl bg-[#f47735]/20 blur-3xl" />
 
             <div className="relative overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-br from-[#35435a] to-[#202c40] p-7 shadow-2xl sm:p-10">
               <div className="flex items-center justify-between">
                 <span className="rounded-full bg-green-400/15 px-3 py-1.5 text-xs font-semibold text-green-300">
-                  ● Ready to rent
+                  ● Ready to explore
                 </span>
                 <span className="text-sm text-gray-300">
-                  Featured equipment
+                  Rentora Marketplace
                 </span>
               </div>
 
-              <div className="flex h-64 items-center justify-center text-9xl">
+              <motion.div
+                className="flex h-64 items-center justify-center text-9xl"
+                animate={{ y: [0, -12, 0] }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              >
                 🚜
-              </div>
+              </motion.div>
 
               <div className="rounded-2xl border border-white/10 bg-white/10 p-5 backdrop-blur">
                 <p className="text-xs font-medium uppercase tracking-widest text-orange-300">
-                  Construction / Heavy Machinery
+                  Equipment Rental Made Easy
                 </p>
 
                 <h3 className="mt-2 text-2xl font-bold text-white">
-                  Heavy Duty Excavator
+                  Find the right equipment
                 </h3>
 
-                <div className="mt-4 flex items-end justify-between">
-                  <div>
-                    <span className="text-3xl font-extrabold text-white">
-                      $180
-                    </span>
-                    <span className="text-sm text-gray-300"> / day</span>
-                  </div>
-
-                  <span className="text-sm text-yellow-300">
-                    ★ 4.9 Rating
-                  </span>
-                </div>
+                <p className="mt-3 text-sm leading-6 text-gray-300">
+                  Browse equipment, compare rental prices, and connect with
+                  equipment owners.
+                </p>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* Search bar */}
+      {/* Search */}
       <section className="relative z-10 mx-auto -mt-7 max-w-6xl px-5">
         <div className="grid gap-3 rounded-2xl bg-white p-4 shadow-xl shadow-gray-200/70 md:grid-cols-[1fr_1fr_1fr_auto] md:p-5">
           <div className="px-3 py-2">
@@ -236,12 +284,9 @@ export default function Home() {
               className="mt-2 w-full bg-transparent text-sm text-gray-700 outline-none"
             >
               <option>All Categories</option>
-              <option>Construction</option>
-              <option>Vehicles</option>
-              <option>Power Tools</option>
-              <option>Electronics</option>
-              <option>Home & Living</option>
-              <option>Events</option>
+              {categories.map((category) => (
+                <option key={category.name}>{category.name}</option>
+              ))}
             </select>
           </div>
 
@@ -268,9 +313,13 @@ export default function Home() {
       </section>
 
       {/* Categories */}
-      <section
+      <motion.section
         id="categories"
         className="mx-auto max-w-7xl px-5 py-24 lg:px-8"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.15 }}
+        variants={sectionAnimation}
       >
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
@@ -296,12 +345,17 @@ export default function Home() {
         </div>
 
         <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {categories.map((category) => (
-            <a
+          {categories.map((category, index) => (
+            <motion.button
+              type="button"
               key={category.name}
-              href="#equipment"
               onClick={() => setSelectedCategory(category.name)}
-              className="group rounded-2xl border border-gray-200 bg-white p-5 transition duration-300 hover:-translate-y-1 hover:border-[#f47735] hover:shadow-lg"
+              className="group rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-[#f47735] hover:shadow-lg"
+              whileHover={{ y: -6 }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.35, delay: index * 0.06 }}
             >
               <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#fff1e9] text-3xl transition group-hover:bg-[#f47735]">
                 {category.icon}
@@ -311,13 +365,13 @@ export default function Home() {
                 {category.name}
               </h3>
 
-              <p className="mt-2 text-xs text-gray-500">{category.count}</p>
-            </a>
+              <p className="mt-2 text-xs text-gray-500">Explore equipment</p>
+            </motion.button>
           ))}
         </div>
-      </section>
+      </motion.section>
 
-      {/* Featured equipment */}
+      {/* Featured Equipment */}
       <section id="equipment" className="bg-white py-24">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <div className="flex flex-wrap items-end justify-between gap-5">
@@ -335,12 +389,12 @@ export default function Home() {
               </p>
             </div>
 
-            <a
-              href="#categories"
+            <Link
+              href="/equipment"
               className="text-sm font-bold text-[#f47735] hover:underline"
             >
-              Explore categories →
-            </a>
+              View all equipment →
+            </Link>
           </div>
 
           <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -357,87 +411,113 @@ export default function Home() {
                 No equipment found. Try changing your search or filters.
               </p>
             ) : (
-              filteredEquipment.map((item) => (
-                <article
-                  key={item._id}
-                  className="group overflow-hidden rounded-2xl border border-gray-200 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl"
-                >
-                  <div className="relative flex h-56 items-center justify-center overflow-hidden bg-[#f0f2f5] transition group-hover:bg-[#e9edf2]">
-                    <img
-                      src={item.imageUrl}
-                      alt={item.name}
-                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                    />
+              filteredEquipment.map((item, index) => {
+                const saved = favorites.some(
+                  (favorite) => favorite._id === item._id
+                );
 
-                    <span className="absolute left-4 top-4 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#172033] shadow-sm">
-                      {item.availability}
-                    </span>
+                return (
+                  <motion.article
+                    key={item._id}
+                    className="group overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:shadow-xl"
+                    initial={{ opacity: 0, y: 25 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.1 }}
+                    transition={{ duration: 0.4, delay: (index % 3) * 0.08 }}
+                    whileHover={{ y: -5 }}
+                  >
+                    <div className="relative flex h-56 items-center justify-center overflow-hidden bg-[#f0f2f5]">
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                      />
 
-                    <button
-                      type="button"
-                      aria-label={`Save ${item.name}`}
-                      className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm transition hover:text-[#f47735]"
-                    >
-                      ♡
-                    </button>
-                  </div>
-
-                  <div className="p-5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#f47735]">
-                      {item.category}
-                    </p>
-
-                    <h3 className="mt-2 text-lg font-bold text-[#172033]">
-                      {item.name}
-                    </h3>
-
-                    <p className="mt-2 line-clamp-2 text-sm text-gray-500">
-                      {item.description}
-                    </p>
-
-                    <div className="mt-3 flex items-center justify-between">
-                      <span className="text-xs text-gray-500">
-                        ⌖ {item.location}
-                      </span>
-
-                      <span
-                        className={`text-xs font-semibold ${
-                          item.availability.toLowerCase() === "available"
-                            ? "text-green-600"
-                            : "text-red-500"
-                        }`}
-                      >
+                      <span className="absolute left-4 top-4 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#172033] shadow-sm">
                         {item.availability}
                       </span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleFavorite(item)}
+                        aria-label={
+                          saved
+                            ? `Remove ${item.name} from favorites`
+                            : `Save ${item.name} to favorites`
+                        }
+                        aria-pressed={saved}
+                        title={
+                          saved ? "Remove from favorites" : "Add to favorites"
+                        }
+                        className={`absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white text-2xl shadow-sm transition hover:scale-110 ${
+                          saved ? "text-red-500" : "text-gray-500 hover:text-red-500"
+                        }`}
+                      >
+                        {saved ? "♥" : "♡"}
+                      </button>
                     </div>
 
-                    <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-5">
-                      <p>
-                        <span className="text-2xl font-extrabold text-[#172033]">
-                          ৳{item.dailyRate.toLocaleString("en-BD")}
-                        </span>
-                        <span className="text-xs text-gray-500"> / day</span>
+                    <div className="p-5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#f47735]">
+                        {item.category}
                       </p>
 
-                      <Link
-                        href={`/equipment/${item.slug}`}
-                        className="rounded-lg bg-[#172033] px-4 py-3 text-xs font-bold text-white transition hover:bg-[#f47735]"
-                      >
-                        View Details →
-                      </Link>
+                      <h3 className="mt-2 text-lg font-bold text-[#172033]">
+                        {item.name}
+                      </h3>
+
+                      <p className="mt-2 line-clamp-2 text-sm text-gray-500">
+                        {item.description}
+                      </p>
+
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className="text-xs text-gray-500">
+                          ⌖ {item.location}
+                        </span>
+
+                        <span
+                          className={`text-xs font-semibold ${
+                            item.availability.toLowerCase() === "available"
+                              ? "text-green-600"
+                              : "text-red-500"
+                          }`}
+                        >
+                          {item.availability}
+                        </span>
+                      </div>
+
+                      <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-5">
+                        <p>
+                          <span className="text-2xl font-extrabold text-[#172033]">
+                            ৳{item.dailyRate.toLocaleString("en-BD")}
+                          </span>
+                          <span className="text-xs text-gray-500"> / day</span>
+                        </p>
+
+                        <Link
+                          href={`/equipment/${item.slug}`}
+                          className="rounded-lg bg-[#172033] px-4 py-3 text-xs font-bold text-white transition hover:bg-[#f47735]"
+                        >
+                          View Details →
+                        </Link>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))
+                  </motion.article>
+                );
+              })
             )}
           </div>
         </div>
       </section>
 
       {/* Why Rentora */}
-      <section
+      <motion.section
         id="about"
         className="mx-auto max-w-7xl px-5 py-24 lg:px-8"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.15 }}
+        variants={sectionAnimation}
       >
         <div className="text-center">
           <p className="text-xs font-bold uppercase tracking-[3px] text-[#f47735]">
@@ -455,10 +535,15 @@ export default function Home() {
         </div>
 
         <div className="mt-14 grid gap-6 md:grid-cols-3">
-          {benefits.map((benefit) => (
-            <div
+          {benefits.map((benefit, index) => (
+            <motion.div
               key={benefit.title}
-              className="rounded-2xl border border-gray-200 bg-white p-8 text-center transition hover:-translate-y-1 hover:shadow-lg"
+              className="rounded-2xl border border-gray-200 bg-white p-8 text-center transition hover:shadow-lg"
+              whileHover={{ y: -6 }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: index * 0.1 }}
             >
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fff1e9] text-2xl font-bold text-[#f47735]">
                 {benefit.icon}
@@ -471,13 +556,46 @@ export default function Home() {
               <p className="mt-3 text-sm leading-7 text-gray-500">
                 {benefit.description}
               </p>
-            </div>
+            </motion.div>
           ))}
         </div>
+      </motion.section>
+
+      {/* Customer Reviews */}
+      <section className="bg-[#f7f8fa] px-5 py-20">
+        <motion.div
+          className="mx-auto max-w-4xl text-center"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+          variants={sectionAnimation}
+        >
+          <p className="text-xs font-bold uppercase tracking-[3px] text-[#f47735]">
+            Customer feedback
+          </p>
+
+          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-[#172033] sm:text-4xl">
+            Customer Reviews
+          </h2>
+
+          <div className="mt-8 rounded-2xl border border-gray-200 bg-white px-6 py-12 shadow-sm">
+            <div className="text-4xl text-[#f47735]">★</div>
+
+            <h3 className="mt-4 text-xl font-bold text-[#172033]">
+              Your feedback matters
+            </h3>
+
+            <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-gray-500">
+              Customer reviews will appear here once the review feature is
+              available. We want every review to come from a real Rentora
+              customer.
+            </p>
+          </div>
+        </motion.div>
       </section>
 
       {/* CTA */}
-      <section className="px-5 pb-24">
+      <section className="px-5 py-24">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-8 rounded-3xl bg-[#f47735] px-8 py-14 text-center md:flex-row md:px-16 md:text-left">
           <div>
             <p className="text-xs font-bold uppercase tracking-[3px] text-white/80">
@@ -536,6 +654,9 @@ export default function Home() {
               <a href="#about" className="hover:text-white">
                 About Rentora
               </a>
+              <Link href="/favorites" className="hover:text-white">
+                My Favorites
+              </Link>
             </div>
           </div>
 

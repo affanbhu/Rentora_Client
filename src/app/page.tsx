@@ -89,7 +89,7 @@ export default function Home() {
       try {
         const [equipmentResponse, statsResponse, reviewsResponse] =
           await Promise.all([
-            fetch(`${apiUrl}/api/equipment`),
+            fetch(`${apiUrl}/api/equipment/featured`),
             fetch(`${apiUrl}/api`),
             fetch(`${apiUrl}/api/reviews/recent`),
           ]);

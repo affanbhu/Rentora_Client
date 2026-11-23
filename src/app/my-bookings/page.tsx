@@ -32,6 +32,8 @@ export default function MyBookingsPage() {
   const [actionError, setActionError] = useState("");
   const [cancellingId, setCancellingId] = useState("");
   const [retryingId, setRetryingId] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   const [reviewBookingId, setReviewBookingId] = useState("");
   const [reviewRating, setReviewRating] = useState(5);
@@ -80,6 +82,12 @@ export default function MyBookingsPage() {
 
     fetchBookings();
   }, [session, isPending, API_URL]);
+
+  const totalPages = Math.ceil(bookings.length / itemsPerPage);
+  const paginatedBookings = bookings.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleCancelBooking = async (bookingId: string) => {
     const confirmed = window.confirm(
@@ -319,9 +327,11 @@ export default function MyBookingsPage() {
             )}
 
             <div className="space-y-5">
-              {bookings.map((booking) => {
+              {paginatedBookings.map((booking) => {
                 const eligible =
-                  booking.status?.toLowerCase() === "confirmed" &&
+                  ["confirmed", "completed"].includes(
+                    booking.status?.toLowerCase() || ""
+                  ) &&
                   booking.paymentStatus?.toLowerCase() === "paid";
 
                 const alreadyReviewed = reviewedBookingIds.includes(
@@ -569,6 +579,30 @@ export default function MyBookingsPage() {
                 );
               })}
             </div>
+
+            {totalPages > 1 && (
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={currentPage === 1}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <span className="text-sm font-semibold text-gray-600">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  disabled={currentPage === totalPages}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

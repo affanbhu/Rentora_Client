@@ -28,6 +28,8 @@ export default function EquipmentPage() {
   const [favoriteActionId, setFavoriteActionId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All Categories");
@@ -142,6 +144,16 @@ export default function EquipmentPage() {
     maxPrice,
     sortBy,
   ]);
+
+  const totalPages = Math.ceil(equipment.length / itemsPerPage);
+  const paginatedEquipment = equipment.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, category, location, availability, rentalType, minPrice, maxPrice, sortBy]);
 
   // Add or remove an equipment item using the MongoDB API.
   const handleFavorite = async (item: FavoriteEquipment) => {
@@ -408,7 +420,7 @@ export default function EquipmentPage() {
         ) : (
           /* Equipment Cards */
           <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {equipment.map((item) => (
+            {paginatedEquipment.map((item) => (
               <article
                 key={item._id}
                 className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:-translate-y-1 hover:shadow-xl"
@@ -482,6 +494,30 @@ export default function EquipmentPage() {
                 </div>
               </article>
             ))}
+          </div>
+        )}
+
+        {!loading && !error && totalPages > 1 && (
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <span className="text-sm font-semibold text-gray-600">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={currentPage === totalPages}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next
+            </button>
           </div>
         )}
       </section>

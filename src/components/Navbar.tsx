@@ -14,6 +14,33 @@ export default function Navbar() {
   const router = useRouter();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("rentora-theme");
+    if (savedTheme === "dark" || savedTheme === "light") {
+      setTheme(savedTheme);
+      document.documentElement.classList.toggle("dark", savedTheme === "dark");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "light" ? "dark" : "light";
+    setTheme(nextTheme);
+    localStorage.setItem("rentora-theme", nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  };
+
+  const themeButton = (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+      className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#f47735]"
+    >
+      {theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}
+    </button>
+  );
   const [role, setRole] = useState("customer");
   const [roleLoading, setRoleLoading] = useState(false);
 
@@ -126,6 +153,11 @@ export default function Navbar() {
           <Link href="/#about" className="transition hover:text-[#f47735]">
             About Us
           </Link>
+        </div>
+
+        {/* Desktop theme toggle */}
+        <div className="hidden md:block">
+          {themeButton}
         </div>
 
         {/* Desktop authentication */}
@@ -249,6 +281,10 @@ export default function Navbar() {
             <Link href="/#about" onClick={closeMenu} className={linkClass}>
               About Us
             </Link>
+
+            <div className="py-2">
+              {themeButton}
+            </div>
 
             <div className="my-3 border-t border-gray-100" />
 

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,706 +5,406 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 
+interface Booking {
+  _id: string;
+  equipmentSlug: string;
+  equipmentName: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  dailyRate: number;
+  totalPrice: number;
+  quantity?: number;
+  status: string;
+  paymentStatus?: string;
+  createdAt: string;
+}
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
-type DashboardData = {
-  stats: {
-    totalUsers: number;
-    totalCustomers: number;
-    totalOwners: number;
-    totalEquipment: number;
-    totalBookings: number;
-    pendingBookings: number;
-    confirmedBookings: number;
-    paidBookings: number;
-  };
-  recentUsers: {
-    _id: string;
-    name?: string;
-    email: string;
-    role?: string;
-  }[];
-  recentBookings: {
-    _id: string;
-    userName?: string;
-    equipmentName?: string;
-    totalPrice?: number;
-    status?: string;
-    paymentStatus?: string;
-  }[];
-  recentEquipment: {
-    _id: string;
-    name: string;
-    category?: string;
-    dailyRate?: number;
-    availability?: string;
-  }[];
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("en-BD", {
+    style: "currency",
+    currency: "BDT",
+    maximumFractionDigits: 0,
+  }).format(Number(amount) || 0);
+
+const formatDate = (date: string) => {
+  if (!date) return "—";
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) return "—";
+
+  return parsedDate.toLocaleDateString("en-BD", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 };
 
-type PendingEquipment = {
-  _id: string;
-  name: string;
-  category?: string;
-  description?: string;
-  dailyRate?: number;
-  location?: string;
-  imageUrl?: string;
-  ownerName?: string;
-  ownerEmail?: string;
-  approvalStatus: string;
+const statusStyle = (status: string) => {
+  switch (status?.toLowerCase()) {
+    case "confirmed":
+      return "bg-emerald-100 text-emerald-700";
+    case "completed":
+      return "bg-blue-100 text-blue-700";
+    case "pending":
+      return "bg-amber-100 text-amber-700";
+    case "cancelled":
+    case "rejected":
+      return "bg-red-100 text-red-700";
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
 };
 
-function AnalyticsBar({
-  label,
-  value,
-  total,
-}: {
-  label: string;
-  value: number;
-  total: number;
-}) {
-  const percentage =
-    total > 0 ? Math.min(100, (value / total) * 100) : 0;
-
-  return (
-    <div className="mb-5 last:mb-0">
-      <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-        <span className="font-medium text-gray-700">{label}</span>
-        <span className="font-semibold text-gray-900">
-          {value} ({percentage.toFixed(1)}%)
-        </span>
-      </div>
-
-      <div className="h-3 overflow-hidden rounded-full bg-gray-100">
-        <div
-          className="h-full rounded-full bg-blue-600 transition-all duration-500"
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-export default function AdminDashboardPage() {
-  const { data: session, isPending } = useSession();
+export default function CustomerDashboardPage() {
   const router = useRouter();
+  const { data: session, isPending } = useSession();
 
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [pendingEquipment, setPendingEquipment] = useState<PendingEquipment[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [equipmentLoading, setEquipmentLoading] = useState(false);
-  const [processingId, setProcessingId] = useState("");
   const [error, setError] = useState("");
-  const [equipmentError, setEquipmentError] = useState("");
-  const [equipmentMessage, setEquipmentMessage] = useState("");
-
-  const loadPendingEquipment = async () => {
-    setEquipmentLoading(true);
-    setEquipmentError("");
-
-    try {
-      const response = await fetch(
-        `${API_URL}/api/admin/equipment/pending`,
-        { credentials: "include" }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(
-          result.message || "Failed to load pending equipment."
-        );
-      }
-
-      setPendingEquipment(result.data || []);
-    } catch (err) {
-      setEquipmentError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load pending equipment."
-      );
-    } finally {
-      setEquipmentLoading(false);
-    }
-  };
-
-  const handleEquipmentApproval = async (
-    equipmentId: string,
-    approvalStatus: "approved" | "rejected"
-  ) => {
-    const action = approvalStatus === "approved" ? "approve" : "reject";
-
-    if (!window.confirm(`Are you sure you want to ${action} this equipment?`)) {
-      return;
-    }
-
-    setProcessingId(equipmentId);
-    setEquipmentError("");
-    setEquipmentMessage("");
-
-    try {
-      const response = await fetch(
-        `${API_URL}/api/admin/equipment/${equipmentId}/approval`,
-        {
-          method: "PATCH",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ approvalStatus }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(
-          result.message || `Failed to ${action} equipment.`
-        );
-      }
-
-      setEquipmentMessage(
-        `Equipment ${approvalStatus} successfully.`
-      );
-
-      await loadPendingEquipment();
-    } catch (err) {
-      setEquipmentError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong."
-      );
-    } finally {
-      setProcessingId("");
-    }
-  };
 
   useEffect(() => {
     if (isPending) return;
 
     if (!session?.user) {
       router.replace("/signin");
+      setLoading(false);
       return;
     }
 
-    let cancelled = false;
+    let active = true;
 
-    const loadDashboard = async () => {
+    const fetchBookings = async () => {
       try {
-        const profileResponse = await fetch(`${API_URL}/api/profile/me`, {
-          credentials: "include",
-        });
+        setLoading(true);
+        setError("");
 
-        if (!profileResponse.ok) {
-          throw new Error("Unable to verify your account.");
-        }
-
-        const profileResult = await profileResponse.json();
-        const role = profileResult.user?.role || "customer";
-
-        if (role !== "admin") {
-          router.replace(
-            role === "owner" ? "/owner/dashboard" : "/dashboard"
-          );
-          return;
-        }
-
-        const response = await fetch(`${API_URL}/api/admin/dashboard`, {
-          credentials: "include",
-        });
+        const response = await fetch(
+          `${API_URL}/api/bookings/my-bookings`,
+          {
+            method: "GET",
+            credentials: "include",
+          }
+        );
 
         const result = await response.json();
 
         if (!response.ok || !result.success) {
           throw new Error(
-            result.message || "Failed to load admin dashboard."
+            result.message || "Unable to load your bookings."
           );
         }
 
-        if (!cancelled) {
-          setData(result);
-        }
-
-        const pendingResponse = await fetch(
-          `${API_URL}/api/admin/equipment/pending`,
-          { credentials: "include" }
-        );
-
-        const pendingResult = await pendingResponse.json();
-
-        if (!pendingResponse.ok || !pendingResult.success) {
-          throw new Error(
-            pendingResult.message || "Failed to load pending equipment."
-          );
-        }
-
-        if (!cancelled) {
-          setPendingEquipment(pendingResult.data || []);
+        if (active) {
+          setBookings(Array.isArray(result.data) ? result.data : []);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (active) {
           setError(
             err instanceof Error
               ? err.message
-              : "Something went wrong."
+              : "Something went wrong while loading your bookings."
           );
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     };
 
-    loadDashboard();
+    fetchBookings();
 
     return () => {
-      cancelled = true;
+      active = false;
     };
   }, [session, isPending, router]);
 
+  const pendingBookings = bookings.filter(
+    (booking) => booking.status === "pending"
+  );
+
+  const confirmedBookings = bookings.filter(
+    (booking) => booking.status === "confirmed"
+  );
+
+  const completedBookings = bookings.filter(
+    (booking) => booking.status === "completed"
+  );
+
+  const paidBookings = bookings.filter(
+    (booking) => booking.paymentStatus === "paid"
+  );
+
+  const recentBookings = bookings.slice(0, 5);
+
   if (isPending || loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-500">Loading admin dashboard...</p>
+      <main className="min-h-screen bg-gray-50 px-5 py-20">
+        <div className="mx-auto max-w-7xl animate-pulse">
+          <div className="mb-4 h-8 w-64 rounded bg-gray-200" />
+          <div className="mb-10 h-4 w-80 rounded bg-gray-200" />
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((item) => (
+              <div
+                key={item}
+                className="h-32 rounded-2xl bg-gray-200"
+              />
+            ))}
+          </div>
+          <div className="mt-8 h-72 rounded-2xl bg-gray-200" />
+        </div>
       </main>
     );
   }
 
-  if (error) {
+  if (!session?.user) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-6">
-        <p className="text-center text-red-600">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="rounded-lg bg-black px-5 py-2 text-white"
-        >
-          Try Again
-        </button>
+      <main className="flex min-h-screen items-center justify-center bg-gray-50">
+        <p className="text-sm text-gray-500">Redirecting to sign in...</p>
       </main>
     );
   }
-
-  if (!data) return null;
-
-  const statCards = [
-    { label: "Total Users", value: data.stats.totalUsers },
-    { label: "Customers", value: data.stats.totalCustomers },
-    { label: "Owners", value: data.stats.totalOwners },
-    { label: "Total Equipment", value: data.stats.totalEquipment },
-    { label: "Total Bookings", value: data.stats.totalBookings },
-    { label: "Pending Bookings", value: data.stats.pendingBookings },
-    { label: "Confirmed Bookings", value: data.stats.confirmedBookings },
-    { label: "Paid Bookings", value: data.stats.paidBookings },
-  ];
-
-  const otherUsers = Math.max(
-    0,
-    data.stats.totalUsers -
-      data.stats.totalCustomers -
-      data.stats.totalOwners
-  );
-
-  const otherBookings = Math.max(
-    0,
-    data.stats.totalBookings -
-      data.stats.pendingBookings -
-      data.stats.confirmedBookings
-  );
-
-  const unpaidBookings = Math.max(
-    0,
-    data.stats.totalBookings - data.stats.paidBookings
-  );
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-gray-50 px-5 py-10 text-gray-900 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <section className="mb-9 flex flex-col justify-between gap-5 rounded-3xl bg-gray-950 p-7 text-white shadow-xl sm:p-10 lg:flex-row lg:items-center">
           <div>
-            <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-blue-600">
-              Rentora Administration
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.25em] text-amber-400">
+              Customer Dashboard
             </p>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Admin Dashboard
+            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
+              Welcome back, {session.user.name || "Customer"}!
             </h1>
-            <p className="mt-2 text-gray-600">
-              Manage and monitor your Rentora platform.
+            <p className="mt-3 max-w-xl text-sm leading-6 text-gray-300">
+              Manage your equipment rentals, track booking requests, and
+              keep your rental activity organized in one place.
             </p>
           </div>
 
           <Link
-            href="/"
-            className="w-fit rounded-lg border border-gray-300 bg-white px-5 py-3 text-sm font-semibold hover:bg-gray-100"
+            href="/equipment"
+            className="inline-flex w-fit items-center justify-center rounded-xl bg-amber-400 px-6 py-3 text-sm font-bold text-gray-950 transition hover:bg-amber-300"
           >
-            Back to Home
+            Browse Equipment <span className="ml-2">→</span>
           </Link>
-        </div>
+        </section>
 
-        <section className="mb-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {statCards.map((card) => (
-            <div
-              key={card.label}
-              className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+        {error && (
+          <div className="mb-7 rounded-2xl border border-red-200 bg-red-50 p-5">
+            <p className="font-semibold text-red-700">
+              Could not load your booking information
+            </p>
+            <p className="mt-1 text-sm text-red-600">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-3 text-sm font-bold text-red-700 underline"
             >
-              <p className="text-sm font-medium text-gray-500">
-                {card.label}
-              </p>
-              <p className="mt-3 text-3xl font-bold text-gray-900">
-                {card.value}
-              </p>
-            </div>
-          ))}
+              Try again
+            </button>
+          </div>
+        )}
+
+        <section className="mb-9 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-medium text-gray-500">
+              Total Bookings
+            </p>
+            <p className="mt-3 text-3xl font-black">{bookings.length}</p>
+            <p className="mt-2 text-xs text-gray-400">
+              All your rental requests
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-medium text-gray-500">
+              Pending Requests
+            </p>
+            <p className="mt-3 text-3xl font-black text-amber-600">
+              {pendingBookings.length}
+            </p>
+            <p className="mt-2 text-xs text-gray-400">
+              Waiting for owner response
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-medium text-gray-500">
+              Confirmed Rentals
+            </p>
+            <p className="mt-3 text-3xl font-black text-emerald-600">
+              {confirmedBookings.length}
+            </p>
+            <p className="mt-2 text-xs text-gray-400">
+              Approved rental bookings
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-medium text-gray-500">
+              Completed Rentals
+            </p>
+            <p className="mt-3 text-3xl font-black text-blue-600">
+              {completedBookings.length}
+            </p>
+            <p className="mt-2 text-xs text-gray-400">
+              Successfully completed
+            </p>
+          </div>
         </section>
 
-        {/* Equipment Approval */}
-        <section className="mb-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">
-                Equipment Approval
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Review equipment submitted by owners before publishing.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="rounded-full bg-yellow-100 px-3 py-1 text-sm font-semibold text-yellow-800">
-                {pendingEquipment.length} Pending
-              </span>
-
-              <button
-                type="button"
-                onClick={loadPendingEquipment}
-                disabled={equipmentLoading}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
+        <section className="mb-9 grid gap-5 lg:grid-cols-3">
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm lg:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-extrabold">Recent Bookings</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Your latest equipment rental activity
+                </p>
+              </div>
+              <Link
+                href="/my-bookings"
+                className="text-sm font-bold text-amber-700 transition hover:text-amber-800"
               >
-                {equipmentLoading ? "Refreshing..." : "Refresh"}
-              </button>
-            </div>
-          </div>
-
-          {equipmentMessage && (
-            <p className="mb-4 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-              {equipmentMessage}
-            </p>
-          )}
-
-          {equipmentError && (
-            <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              {equipmentError}
-            </p>
-          )}
-
-          {equipmentLoading && pendingEquipment.length === 0 ? (
-            <p className="py-8 text-center text-gray-500">
-              Loading pending equipment...
-            </p>
-          ) : pendingEquipment.length === 0 ? (
-            <div className="rounded-lg bg-gray-50 px-4 py-10 text-center">
-              <p className="font-semibold text-gray-700">
-                No pending equipment
-              </p>
-              <p className="mt-1 text-sm text-gray-500">
-                All submitted equipment has been reviewed.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-5 md:grid-cols-2">
-              {pendingEquipment.map((equipment) => (
-                <article
-                  key={equipment._id}
-                  className="overflow-hidden rounded-xl border border-gray-200"
-                >
-                  {equipment.imageUrl && (
-                    <img
-                      src={equipment.imageUrl}
-                      alt={equipment.name}
-                      className="h-48 w-full object-cover"
-                    />
-                  )}
-
-                  <div className="p-5">
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <h3 className="text-lg font-bold text-gray-900">
-                        {equipment.name}
-                      </h3>
-                      <span className="shrink-0 rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold capitalize text-yellow-800">
-                        {equipment.approvalStatus}
-                      </span>
-                    </div>
-
-                    <p className="text-sm text-gray-500">
-                      {equipment.category || "Uncategorized"}
-                      {equipment.location
-                        ? ` · ${equipment.location}`
-                        : ""}
-                    </p>
-
-                    <p className="mt-3 font-bold text-gray-900">
-                      ৳{equipment.dailyRate ?? 0} / day
-                    </p>
-
-                    <div className="mt-4 border-t border-gray-100 pt-4 text-sm text-gray-600">
-                      <p>
-                        Owner: {equipment.ownerName || "Not provided"}
-                      </p>
-                      <p className="mt-1 break-all">
-                        Email: {equipment.ownerEmail || "Not provided"}
-                      </p>
-                    </div>
-
-                    {equipment.description && (
-                      <p className="mt-3 line-clamp-3 text-sm text-gray-500">
-                        {equipment.description}
-                      </p>
-                    )}
-
-                    <div className="mt-5 flex gap-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleEquipmentApproval(
-                            equipment._id,
-                            "approved"
-                          )
-                        }
-                        disabled={processingId === equipment._id}
-                        className="flex-1 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {processingId === equipment._id
-                          ? "Processing..."
-                          : "Approve"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleEquipmentApproval(
-                            equipment._id,
-                            "rejected"
-                          )
-                        }
-                        disabled={processingId === equipment._id}
-                        className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {processingId === equipment._id
-                          ? "Processing..."
-                          : "Reject"}
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Analytics Overview */}
-        <section className="mb-10">
-          <div className="mb-5">
-            <h2 className="text-2xl font-bold text-gray-900">
-              Analytics Overview
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Visual breakdown of users, bookings, and payments.
-            </p>
-          </div>
-
-          <div className="grid gap-5 lg:grid-cols-3">
-            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="mb-6 text-lg font-bold text-gray-900">
-                User Composition
-              </h3>
-              <AnalyticsBar
-                label="Customers"
-                value={data.stats.totalCustomers}
-                total={data.stats.totalUsers}
-              />
-              <AnalyticsBar
-                label="Owners"
-                value={data.stats.totalOwners}
-                total={data.stats.totalUsers}
-              />
-              <AnalyticsBar
-                label="Other Accounts"
-                value={otherUsers}
-                total={data.stats.totalUsers}
-              />
-              <p className="mt-5 border-t pt-4 text-sm text-gray-500">
-                Total registered users:{" "}
-                <strong className="text-gray-900">
-                  {data.stats.totalUsers}
-                </strong>
-              </p>
+                View all bookings →
+              </Link>
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="mb-6 text-lg font-bold text-gray-900">
-                Booking Status
-              </h3>
-              <AnalyticsBar
-                label="Pending"
-                value={data.stats.pendingBookings}
-                total={data.stats.totalBookings}
-              />
-              <AnalyticsBar
-                label="Confirmed"
-                value={data.stats.confirmedBookings}
-                total={data.stats.totalBookings}
-              />
-              <AnalyticsBar
-                label="Other / Cancelled"
-                value={otherBookings}
-                total={data.stats.totalBookings}
-              />
-              <p className="mt-5 border-t pt-4 text-sm text-gray-500">
-                Total bookings:{" "}
-                <strong className="text-gray-900">
-                  {data.stats.totalBookings}
-                </strong>
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="mb-6 text-lg font-bold text-gray-900">
-                Payment Overview
-              </h3>
-              <AnalyticsBar
-                label="Paid Bookings"
-                value={data.stats.paidBookings}
-                total={data.stats.totalBookings}
-              />
-              <AnalyticsBar
-                label="Unpaid Bookings"
-                value={unpaidBookings}
-                total={data.stats.totalBookings}
-              />
-              <p className="mt-5 border-t pt-4 text-sm text-gray-500">
-                Paid bookings:{" "}
-                <strong className="text-gray-900">
-                  {data.stats.paidBookings}
-                </strong>
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Recent Users */}
-        <section className="mb-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-5 text-xl font-bold text-gray-900">
-            Recent Users
-          </h2>
-
-          {data.recentUsers.length === 0 ? (
-            <p className="text-gray-500">No users found.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b text-gray-500">
-                    <th className="py-3 pr-4">Name</th>
-                    <th className="py-3 pr-4">Email</th>
-                    <th className="py-3">Role</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.recentUsers.map((user) => (
-                    <tr key={user._id} className="border-b last:border-0">
-                      <td className="py-4 pr-4 font-medium">
-                        {user.name || "N/A"}
-                      </td>
-                      <td className="py-4 pr-4">{user.email}</td>
-                      <td className="py-4 capitalize">
-                        {user.role || "customer"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* Recent Bookings */}
-        <section className="mb-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-5 text-xl font-bold text-gray-900">
-            Recent Bookings
-          </h2>
-
-          {data.recentBookings.length === 0 ? (
-            <p className="text-gray-500">No bookings found.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b text-gray-500">
-                    <th className="py-3 pr-4">Customer</th>
-                    <th className="py-3 pr-4">Equipment</th>
-                    <th className="py-3 pr-4">Amount</th>
-                    <th className="py-3 pr-4">Status</th>
-                    <th className="py-3">Payment</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.recentBookings.map((booking) => (
-                    <tr key={booking._id} className="border-b last:border-0">
-                      <td className="py-4 pr-4">
-                        {booking.userName || "N/A"}
-                      </td>
-                      <td className="py-4 pr-4">
-                        {booking.equipmentName || "N/A"}
-                      </td>
-                      <td className="py-4 pr-4">
-                        ৳{booking.totalPrice ?? 0}
-                      </td>
-                      <td className="py-4 pr-4 capitalize">
-                        {booking.status || "N/A"}
-                      </td>
-                      <td className="py-4 capitalize">
-                        {booking.paymentStatus || "Unpaid"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* Recent Equipment */}
-        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-5 text-xl font-bold text-gray-900">
-            Recent Equipment
-          </h2>
-
-          {data.recentEquipment.length === 0 ? (
-            <p className="text-gray-500">No equipment found.</p>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {data.recentEquipment.map((equipment) => (
-                <div
-                  key={equipment._id}
-                  className="rounded-lg border border-gray-200 p-5"
-                >
-                  <h3 className="font-semibold text-gray-900">
-                    {equipment.name}
-                  </h3>
-                  <p className="mt-2 text-sm text-gray-500">
-                    {equipment.category || "Uncategorized"}
-                  </p>
-                  <p className="mt-3 font-semibold">
-                    ৳{equipment.dailyRate ?? 0} / day
-                  </p>
-                  <p className="mt-1 text-sm capitalize text-gray-500">
-                    {equipment.availability || "Availability not specified"}
-                  </p>
+            {recentBookings.length === 0 ? (
+              <div className="py-14 text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-2xl">
+                  🚜
                 </div>
-              ))}
+                <h3 className="font-bold">No bookings yet</h3>
+                <p className="mt-2 text-sm text-gray-500">
+                  Find the equipment you need and make your first booking.
+                </p>
+                <Link
+                  href="/equipment"
+                  className="mt-5 inline-flex rounded-xl bg-gray-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-gray-800"
+                >
+                  Explore Equipment
+                </Link>
+              </div>
+            ) : (
+              <div className="mt-6 overflow-x-auto">
+                <table className="w-full min-w-[620px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-gray-400">
+                      <th className="pb-4 pr-4 font-semibold">Equipment</th>
+                      <th className="pb-4 pr-4 font-semibold">Rental Dates</th>
+                      <th className="pb-4 pr-4 font-semibold">Amount</th>
+                      <th className="pb-4 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentBookings.map((booking) => (
+                      <tr
+                        key={booking._id}
+                        className="border-b border-gray-100 last:border-0"
+                      >
+                        <td className="py-4 pr-4">
+                          <p className="font-bold text-gray-900">
+                            {booking.equipmentName || "Equipment"}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-400">
+                            {booking.quantity || 1} unit(s)
+                          </p>
+                        </td>
+                        <td className="py-4 pr-4 text-gray-600">
+                          <p>{formatDate(booking.startDate)}</p>
+                          <p className="mt-1 text-xs text-gray-400">
+                            to {formatDate(booking.endDate)}
+                          </p>
+                        </td>
+                        <td className="py-4 pr-4 font-semibold text-gray-800">
+                          {formatCurrency(booking.totalPrice)}
+                        </td>
+                        <td className="py-4">
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-bold capitalize ${statusStyle(
+                              booking.status
+                            )}`}
+                          >
+                            {booking.status || "Unknown"}
+                          </span>
+                          <p className="mt-2 text-xs capitalize text-gray-400">
+                            Payment: {booking.paymentStatus || "unpaid"}
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <aside className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-extrabold">Rental Overview</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              A quick look at your activity
+            </p>
+
+            <div className="mt-7 space-y-6">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="text-gray-500">Paid Bookings</span>
+                  <span className="font-bold">{paidBookings.length}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-500"
+                    style={{
+                      width: `${
+                        bookings.length
+                          ? (paidBookings.length / bookings.length) * 100
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-gray-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                  Total Rental Value
+                </p>
+                <p className="mt-2 text-2xl font-black">
+                  {formatCurrency(
+                    bookings.reduce(
+                      (total, booking) =>
+                        total + (Number(booking.totalPrice) || 0),
+                      0
+                    )
+                  )}
+                </p>
+                <p className="mt-1 text-xs text-gray-400">
+                  Across all your bookings
+                </p>
+              </div>
+
+              <Link
+                href="/favorites"
+                className="flex items-center justify-between rounded-xl border border-gray-200 p-4 text-sm font-bold transition hover:border-amber-400 hover:bg-amber-50"
+              >
+                <span>My Favorite Equipment</span>
+                <span className="text-amber-600">→</span>
+              </Link>
+
+              <Link
+                href="/profile"
+                className="flex items-center justify-between rounded-xl border border-gray-200 p-4 text-sm font-bold transition hover:border-amber-400 hover:bg-amber-50"
+              >
+                <span>Manage My Profile</span>
+                <span className="text-amber-600">→</span>
+              </Link>
             </div>
-          )}
+          </aside>
         </section>
       </div>
     </main>

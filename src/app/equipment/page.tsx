@@ -18,6 +18,8 @@ const categories = [
   "Electronics",
   "Home & Living",
   "Events",
+  "Photography Equipment",
+  "Event Equipment",
 ];
 
 export default function EquipmentPage() {

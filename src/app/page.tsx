@@ -14,6 +14,8 @@ const categories = [
   { name: "Electronics", icon: "💻" },
   { name: "Home & Living", icon: "🏠" },
   { name: "Events", icon: "🎪" },
+  { name: "Photography Equipment", icon: "📷" },
+  { name: "Event Equipment", icon: "🎤" },
 ];
 
 interface Equipment extends FavoriteEquipment {}

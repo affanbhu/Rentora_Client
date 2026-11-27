@@ -44,6 +44,8 @@ const categories = [
   "Transportation",
   "Industrial",
   "Other",
+  "Photography Equipment",
+  "Event Equipment",
 ];
 
 export default function AdminEditEquipmentPage() {

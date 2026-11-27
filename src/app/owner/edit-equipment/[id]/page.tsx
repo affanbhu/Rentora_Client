@@ -248,10 +248,10 @@ export default function EditEquipmentPage() {
                 className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#f47735]"
               >
                 <option value="">Select a category</option>
-                {["Construction", "Agriculture", "Transportation", "Industrial", "Other"].map((category) => (
+                {["Construction", "Agriculture", "Transportation", "Industrial", "Other", "Photography Equipment", "Event Equipment"].map((category) => (
                   <option key={category} value={category}>{category}</option>
                 ))}
-                {!["Construction", "Agriculture", "Transportation", "Industrial", "Other"].includes(form.category) && form.category && (
+                {!["Construction", "Agriculture", "Transportation", "Industrial", "Other", "Photography Equipment", "Event Equipment"].includes(form.category) && form.category && (
                   <option value={form.category}>{form.category}</option>
                 )}
               </select>
